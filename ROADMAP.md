@@ -9,7 +9,7 @@
 - Find first divergence point
 - Report: token index, expected vs actual, probability diff
 
-## M3: KV Cache Comparison ⬜
+## M3: KV Cache Comparison ✅
 - Load two KV cache dumps (numpy npz format)
 - Compute: max absolute diff, mean absolute diff, cosine similarity per layer
 - Flag layers with significant divergence
