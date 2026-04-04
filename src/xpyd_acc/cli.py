@@ -23,25 +23,25 @@ def main(argv: list[str] | None = None) -> None:
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
     lp.add_argument("--target", required=True, help="Target endpoint URL")
     lp.add_argument("--prompt", required=True, help="Prompt to send")
-    lp.add_argument("--model", default="default", help="Model name")
-    lp.add_argument("--max-tokens", type=int, default=64, help="Max tokens to generate")
-    lp.add_argument("--api-key", default="no-key", help="API key for both endpoints")
+    lp.add_argument("--model", default=None, help="Model name (default: default)")
+    lp.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
+    lp.add_argument("--api-key", default=None, help="API key for both endpoints")
 
     diag = sub.add_parser("diagnose", help="Run full diagnostic pipeline")
     diag.add_argument("--baseline", required=True, help="Baseline endpoint URL")
     diag.add_argument("--target", required=True, help="Target endpoint URL")
     diag.add_argument("--prompt", required=True, help="Prompt to send")
-    diag.add_argument("--model", default="default", help="Model name")
-    diag.add_argument("--max-tokens", type=int, default=64, help="Max tokens to generate")
-    diag.add_argument("--api-key", default="no-key", help="API key for endpoints")
+    diag.add_argument("--model", default=None, help="Model name (default: default)")
+    diag.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
+    diag.add_argument("--api-key", default=None, help="API key for endpoints")
     diag.add_argument("--kv-baseline", default=None, help="Path to baseline KV cache (.npz)")
     diag.add_argument("--kv-target", default=None, help="Path to target KV cache (.npz)")
     diag.add_argument(
-        "--kv-max-abs-threshold", type=float, default=1e-3,
+        "--kv-max-abs-threshold", type=float, default=None,
         help="KV cache max absolute diff threshold (default: 1e-3)",
     )
     diag.add_argument(
-        "--kv-cosine-threshold", type=float, default=0.999,
+        "--kv-cosine-threshold", type=float, default=None,
         help="KV cache cosine similarity threshold (default: 0.999)",
     )
     diag.add_argument("--json", action="store_true", help="Output report as JSON")
@@ -57,19 +57,22 @@ def main(argv: list[str] | None = None) -> None:
     bc.add_argument("--baseline", required=True, help="Baseline endpoint URL")
     bc.add_argument("--target", required=True, help="Target endpoint URL")
     bc.add_argument("--dataset", required=True, help="Path to JSONL dataset file")
-    bc.add_argument("--model", default="default", help="Model name")
-    bc.add_argument("--max-tokens", type=int, default=64, help="Max tokens to generate")
-    bc.add_argument("--api-key", default="no-key", help="API key for endpoints")
-    bc.add_argument("--concurrency", type=int, default=5, help="Max concurrent requests")
+    bc.add_argument("--model", default=None, help="Model name (default: default)")
+    bc.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
+    bc.add_argument("--api-key", default=None, help="API key for endpoints")
     bc.add_argument(
-        "--logprob-gap-threshold", type=float, default=0.1,
+        "--concurrency", type=int, default=None,
+        help="Max concurrent requests (default: 5)",
+    )
+    bc.add_argument(
+        "--logprob-gap-threshold", type=float, default=None,
         help="Logprob gap threshold for bug vs uncertainty (default: 0.1)",
     )
     bc.add_argument("--csv", default=None, help="Path to export CSV results")
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
-    rp.add_argument("--output", default="report.html", help="Output HTML file path")
+    rp.add_argument("--output", default=None, help="Output HTML file path (default: report.html)")
 
     det = sub.add_parser("detect", help="Detect xPyD endpoint type")
     det.add_argument("url", help="Endpoint URL to probe")
@@ -79,11 +82,11 @@ def main(argv: list[str] | None = None) -> None:
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
     kv.add_argument(
-        "--max-abs-threshold", type=float, default=1e-3,
+        "--max-abs-threshold", type=float, default=None,
         help="Max absolute diff threshold for divergence (default: 1e-3)",
     )
     kv.add_argument(
-        "--cosine-threshold", type=float, default=0.999,
+        "--cosine-threshold", type=float, default=None,
         help="Cosine similarity threshold for divergence (default: 0.999)",
     )
     kv.add_argument("--json", action="store_true", help="Output report as JSON")
@@ -107,6 +110,23 @@ def main(argv: list[str] | None = None) -> None:
         merged = merge_cli_args(config, args_dict, args.command)
         for key, val in merged.items():
             setattr(args, key, val)
+
+    # Apply hardcoded defaults for any remaining None values
+    _FINAL_DEFAULTS: dict[str, object] = {
+        "model": "default",
+        "max_tokens": 64,
+        "api_key": "no-key",
+        "concurrency": 5,
+        "logprob_gap_threshold": 0.1,
+        "output": "report.html",
+        "max_abs_threshold": 1e-3,
+        "cosine_threshold": 0.999,
+        "kv_max_abs_threshold": 1e-3,
+        "kv_cosine_threshold": 0.999,
+    }
+    for key, default in _FINAL_DEFAULTS.items():
+        if hasattr(args, key) and getattr(args, key) is None:
+            setattr(args, key, default)
 
     if args.command == "batch-compare":
         asyncio.run(_run_batch_compare(args))

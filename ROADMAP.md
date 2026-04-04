@@ -65,7 +65,7 @@
   - Context length vs divergence rate chart
 - Terminal-friendly rich output for quick checks
 
-## M9: Configuration File Support ⬜
+## M9: Configuration File Support ✅
 - TOML config file (`xpyd-acc.toml`) for repeated runs
 - Auto-discovery in current directory
 - CLI flags override config values
