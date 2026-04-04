@@ -234,7 +234,7 @@
 - Clear terminal PASS/FAIL message with threshold comparison
 - Also applies to `--rerun` mode
 
-## M32: Multi-Target Comparison
+## M32: Multi-Target Comparison ✅
 - `batch-compare --target <url1> --target <url2> ...` supports multiple targets
 - Compare one baseline against N target endpoints simultaneously
 - Per-target results in the batch report (separate divergence stats per target)
