@@ -205,7 +205,7 @@
 - `log.py` module with `setup_logging()` and `get_logger()`
 - Logging integrated into retry, healthcheck, batch_compare, streaming, config
 
-## M29: Watch Mode — Continuous Divergence Monitoring
+## M29: Watch Mode — Continuous Divergence Monitoring ✅
 - `xpyd-acc watch --baseline <url> --target <url> --prompt <text> --interval <seconds>`
 - Repeatedly runs logprobs comparison at configurable interval (default 60s)
 - Reports each iteration: pass/fail, first divergence index, latency
