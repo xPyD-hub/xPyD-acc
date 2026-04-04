@@ -42,6 +42,13 @@ def main(argv: list[str] | None = None) -> None:
     )
     diag.add_argument("--json", action="store_true", help="Output report as JSON")
 
+    oc = sub.add_parser("compare-output", help="Compare text outputs from two endpoints")
+    oc_input = oc.add_mutually_exclusive_group(required=True)
+    oc_input.add_argument("--baseline-text", help="Baseline output text (inline)")
+    oc_input.add_argument("--baseline-file", help="Path to file with baseline output")
+    oc.add_argument("--target-text", help="Target output text (inline)")
+    oc.add_argument("--target-file", help="Path to file with target output")
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -60,7 +67,9 @@ def main(argv: list[str] | None = None) -> None:
         parser.print_help()
         return
 
-    if args.command == "compare-logprobs":
+    if args.command == "compare-output":
+        _run_compare_output(args)
+    elif args.command == "compare-logprobs":
         asyncio.run(_run_compare_logprobs(args))
     elif args.command == "check-kv":
         _run_check_kv(args)
@@ -68,6 +77,33 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(_run_diagnose(args))
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
+
+
+def _run_compare_output(args: argparse.Namespace) -> None:
+    """Run text output comparison."""
+    from pathlib import Path
+
+    from xpyd_acc.output_compare import OutputComparator
+
+    if args.baseline_text is not None:
+        baseline = args.baseline_text
+    else:
+        baseline = Path(args.baseline_file).read_text()
+
+    if args.target_text is not None:
+        target = args.target_text
+    elif args.target_file is not None:
+        target = Path(args.target_file).read_text()
+    else:
+        print("Error: provide --target-text or --target-file", file=sys.stderr)
+        sys.exit(1)
+
+    comparator = OutputComparator()
+    report = comparator.compare(baseline, target)
+    print(OutputComparator.format_report(report))
+
+    if not report.exact_match:
+        sys.exit(1)
 
 
 async def _run_compare_logprobs(args: argparse.Namespace) -> None:
