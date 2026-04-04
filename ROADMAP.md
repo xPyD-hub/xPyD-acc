@@ -172,7 +172,7 @@
 - Environment variables: `XPYD_ACC_TEMPERATURE`, `XPYD_ACC_TOP_P`, `XPYD_ACC_SEED`
 - All flags default to None (server decides) to preserve backward compatibility
 
-## M25: Named Profiles (Presets)
+## M25: Named Profiles (Presets) ✅
 - Named profiles in `[profiles.<name>]` TOML sections
 - Each profile can override: model, temperature, top_p, seed, max_tokens, retries, retry_delay, matching settings
 - CLI flag `--profile <name>` to activate a profile
