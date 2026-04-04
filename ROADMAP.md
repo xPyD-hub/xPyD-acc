@@ -243,7 +243,7 @@
 - JSON/CSV/Markdown export includes per-target breakdowns
 - Useful for comparing different PD configurations side by side
 
-## M33: Request ID Tracking for API Call Correlation
+## M33: Request ID Tracking for API Call Correlation ✅
 - All HTTP requests include `X-Request-ID` header with a UUID4 value
 - `SampleResult` includes `request_ids` field (baseline + target request IDs)
 - Request IDs appear in JSON export output
