@@ -156,7 +156,7 @@
 - TOML config section `[matching]` for default tolerance settings
 - Tests for all tolerance modes and combinations
 
-## M23: Selective Sample Rerun
+## M23: Selective Sample Rerun ✅
 - `batch-compare --rerun <report.json>` reruns only divergent samples from a previous run
 - Filters to samples where `match == false` in the input report
 - Outputs a new report containing only rerun results
