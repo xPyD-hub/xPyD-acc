@@ -62,8 +62,12 @@ class LogprobsCollector:
         max_tokens: int = 64,
         *,
         timeout: float = 30.0,
+        retries: int = 3,
+        retry_delay: float = 1.0,
     ) -> LogprobsResult:
         """Send prompt and collect logprobs from the completions endpoint."""
+        from xpyd_acc.retry import retry_async
+
         url = f"{self.base_url}/v1/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}"}
         payload = {
@@ -74,11 +78,13 @@ class LogprobsCollector:
             "top_logprobs": 1,
         }
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        async def _do_request() -> dict:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                return resp.json()
 
+        data = await retry_async(_do_request, retries=retries, base_delay=retry_delay)
         return self._parse_response(data)
 
     def _parse_response(self, data: dict) -> LogprobsResult:

@@ -180,6 +180,8 @@ async def _collect_output(
     model: str = "default",
     max_tokens: int = 64,
     api_key: str = "no-key",
+    retries: int = 3,
+    retry_delay: float = 1.0,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list).
 
@@ -187,6 +189,8 @@ async def _collect_output(
     Each logprob entry has: {"token": str, "logprob": float, "top_logprobs": [...]}.
     """
     import httpx
+
+    from xpyd_acc.retry import retry_async
 
     payload = {
         "model": model,
@@ -197,15 +201,19 @@ async def _collect_output(
     }
     headers = {"Authorization": f"Bearer {api_key}"}
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        resp = await client.post(f"{url}/v1/chat/completions", json=payload, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+    async def _do_request() -> tuple[str, list[dict[str, Any]]]:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{url}/v1/chat/completions", json=payload, headers=headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        choice = data["choices"][0]
+        text = choice["message"]["content"]
+        logprobs_content = choice.get("logprobs", {}).get("content", [])
+        return text, logprobs_content
 
-    choice = data["choices"][0]
-    text = choice["message"]["content"]
-    logprobs_content = choice.get("logprobs", {}).get("content", [])
-    return text, logprobs_content
+    return await retry_async(_do_request, retries=retries, base_delay=retry_delay)
 
 
 async def run_batch(
@@ -218,6 +226,8 @@ async def run_batch(
     api_key: str = "no-key",
     logprob_gap_threshold: float = 0.1,
     concurrency: int = 5,
+    retries: int = 3,
+    retry_delay: float = 1.0,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report."""
     semaphore = asyncio.Semaphore(concurrency)
@@ -228,10 +238,12 @@ async def run_batch(
             baseline_text, baseline_lp = await _collect_output(
                 baseline_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
+                retries=retries, retry_delay=retry_delay,
             )
             target_text, target_lp = await _collect_output(
                 target_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
+                retries=retries, retry_delay=retry_delay,
             )
 
         b_tokens = _tokenize(baseline_text)
