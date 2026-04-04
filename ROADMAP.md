@@ -281,3 +281,14 @@
 - Cache hits logged at INFO level, misses at DEBUG
 - Dramatically speeds up reruns and iterative debugging sessions
 - Tests for cache hit/miss, TTL expiry, clear, stats, and no-cache bypass
+
+## M37: Result History & Trend Tracking
+- `xpyd-acc history save --report <path> --tag <label>` stores a batch report in local history DB
+- `xpyd-acc history list` shows all saved reports with date, tag, divergence rate
+- `xpyd-acc history trend --last <n>` shows divergence rate trend across last N runs
+- History stored in `~/.xpyd-acc/history/` as timestamped JSON files with metadata
+- `HistoryEntry` dataclass: timestamp, tag, report_path, divergence_rate, sample_count, dataset
+- `HistoryStore` class for save/list/query operations
+- Trend output: table with date, tag, divergence rate, delta from previous run
+- Exit code 1 if trend shows increasing divergence (configurable via `--fail-on-regression`)
+- Tests for save, list, trend calculation, regression detection
