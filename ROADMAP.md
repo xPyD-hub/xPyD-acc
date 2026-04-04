@@ -3,7 +3,7 @@
 ## M1: Project Skeleton ✅
 - Basic project structure, CLI stub, CI
 
-## M2: Logprobs Comparison Tool ⬜
+## M2: Logprobs Comparison Tool ✅
 - Send same prompt to two endpoints
 - Collect logprobs token by token
 - Find first divergence point
@@ -15,7 +15,7 @@
 - Flag layers with significant divergence
 - Report with per-layer breakdown
 
-## M4: Automated Diagnostic Pipeline ⬜
+## M4: Automated Diagnostic Pipeline ✅
 - xpyd-acc diagnose: run all checks in sequence
 - Step 1: baseline vs prefill-only (first token match?)
 - Step 2: KV cache check (if dumps available)
