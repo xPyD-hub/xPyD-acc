@@ -393,6 +393,26 @@ def main(argv: list[str] | None = None) -> None:
     bm.add_argument("--json", default=None, dest="json_path", help="Export JSON report to path")
     _add_sampling_args(bm)
 
+    # init
+    init_cmd = sub.add_parser("init", help="Generate a starter xpyd-acc.toml config file")
+    init_cmd.add_argument(
+        "--output", "-o", default="xpyd-acc.toml",
+        help="Output path (default: xpyd-acc.toml)",
+    )
+    init_cmd.add_argument(
+        "--force", action="store_true", default=False,
+        help="Overwrite existing file",
+    )
+
+    # config validate
+    cfg_cmd = sub.add_parser("config", help="Configuration utilities")
+    cfg_sub = cfg_cmd.add_subparsers(dest="config_command")
+    cfg_validate = cfg_sub.add_parser("validate", help="Validate a TOML config file")
+    cfg_validate.add_argument(
+        "path", nargs="?", default="xpyd-acc.toml",
+        help="Path to config file (default: xpyd-acc.toml)",
+    )
+
     args = parser.parse_args(argv)
 
     # Setup logging from verbosity flags
@@ -429,6 +449,16 @@ def main(argv: list[str] | None = None) -> None:
         except KeyError as exc:
             parser.error(str(exc))
         apply_profile(vars(args), profile)
+
+    # Handle 'init' subcommand
+    if args.command == "init":
+        _run_init(args)
+        return
+
+    # Handle 'config' subcommand
+    if args.command == "config":
+        _run_config(args)
+        return
 
     # Handle 'profiles' subcommand
     if args.command == "profiles":
@@ -1744,3 +1774,52 @@ def _run_history(args: argparse.Namespace) -> None:
 
     else:
         print("Usage: xpyd-acc history {save|list|trend}")
+
+
+def _run_init(args: argparse.Namespace) -> None:
+    """Generate a starter config file."""
+    from pathlib import Path
+
+    from xpyd_acc.config_validate import generate_starter_config
+
+    output = Path(args.output)
+    try:
+        path = generate_starter_config(output, force=args.force)
+        print(f"Created config file: {path}")
+    except FileExistsError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _run_config(args: argparse.Namespace) -> None:
+    """Handle config subcommands."""
+    if not hasattr(args, "config_command") or args.config_command is None:
+        print("Usage: xpyd-acc config {validate}")
+        return
+
+    if args.config_command == "validate":
+        from pathlib import Path
+
+        from xpyd_acc.config_validate import validate_config
+
+        path = Path(args.path)
+        try:
+            issues = validate_config(path)
+        except FileNotFoundError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        if not issues:
+            print(f"✅ {path} is valid")
+            sys.exit(0)
+        else:
+            has_errors = False
+            for issue in issues:
+                print(issue)
+                if issue.startswith("error:"):
+                    has_errors = True
+            if has_errors:
+                sys.exit(1)
+            else:
+                print(f"\n⚠️  {path} has warnings but no errors")
+                sys.exit(0)
