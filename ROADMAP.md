@@ -164,7 +164,7 @@
 - Useful for quick retesting after fixes without rerunning the full dataset
 - Exit code reflects rerun results (0 = all match, 1 = still divergent)
 
-## M24: Sampling Parameter Support
+## M24: Sampling Parameter Support ✅
 - CLI flags: `--temperature`, `--top-p`, `--seed` for all comparison commands
 - Propagated to logprobs collection, batch comparison, streaming, and diagnose
 - TOML config support in `[defaults]` section
