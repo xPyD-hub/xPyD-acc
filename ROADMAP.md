@@ -268,3 +268,16 @@
 - Usage: `eval "$(xpyd-acc completion bash)"` or save to a file
 - `--output <path>` flag to write directly to a file
 - Tests for completion script generation (non-empty output, valid syntax markers)
+
+## M36: Response Caching for Batch Comparison
+- Content-addressable cache: hash(endpoint_url + model + prompt + sampling_params) → cached response
+- `--cache-dir <path>` flag (default: `.xpyd-acc-cache/`)
+- `--no-cache` flag to bypass cache entirely
+- TOML config: `[batch] cache_dir = ".xpyd-acc-cache"`
+- Cache entries stored as JSON with TTL metadata
+- `--cache-ttl <seconds>` flag (default: 3600) — entries older than TTL are re-fetched
+- `xpyd-acc cache clear` subcommand to purge cached responses
+- `xpyd-acc cache stats` subcommand to show cache size, hit rate, entry count
+- Cache hits logged at INFO level, misses at DEBUG
+- Dramatically speeds up reruns and iterative debugging sessions
+- Tests for cache hit/miss, TTL expiry, clear, stats, and no-cache bypass

@@ -190,6 +190,32 @@ def main(argv: list[str] | None = None) -> None:
         "--deduplicate", action="store_true", default=False,
         help="Send each unique prompt only once per endpoint, reuse results for duplicates",
     )
+    bc.add_argument(
+        "--cache-dir", default=None,
+        help="Directory for response cache (default: .xpyd-acc-cache)",
+    )
+    bc.add_argument(
+        "--no-cache", action="store_true", default=False,
+        help="Disable response caching entirely",
+    )
+    bc.add_argument(
+        "--cache-ttl", type=float, default=None,
+        help="Cache entry TTL in seconds (default: 3600)",
+    )
+
+    # Cache management subcommand
+    cache_cmd = sub.add_parser("cache", help="Manage response cache")
+    cache_sub = cache_cmd.add_subparsers(dest="cache_action")
+    cache_clear = cache_sub.add_parser("clear", help="Remove all cached responses")
+    cache_clear.add_argument(
+        "--cache-dir", default=None,
+        help="Cache directory (default: .xpyd-acc-cache)",
+    )
+    cache_stats = cache_sub.add_parser("stats", help="Show cache statistics")
+    cache_stats.add_argument(
+        "--cache-dir", default=None,
+        help="Cache directory (default: .xpyd-acc-cache)",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -454,6 +480,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_watch(args)
     elif args.command == "snapshot":
         asyncio.run(_run_snapshot(args))
+    elif args.command == "cache":
+        _run_cache(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -648,6 +676,15 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             or match_config.numeric_tolerance is not None
         ) else None
 
+        # Set up response cache
+        batch_cache = None
+        if not getattr(args, "no_cache", False):
+            from xpyd_acc.cache import DEFAULT_CACHE_DIR, DEFAULT_TTL, ResponseCache
+
+            cache_dir = getattr(args, "cache_dir", None) or DEFAULT_CACHE_DIR
+            cache_ttl = getattr(args, "cache_ttl", None) or DEFAULT_TTL
+            batch_cache = ResponseCache(cache_dir=cache_dir, ttl=cache_ttl)
+
         is_multi = len(target_urls) > 1
 
         if is_multi:
@@ -687,10 +724,17 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 timeout=args.timeout,
                 deduplicate=getattr(args, "deduplicate", False),
                 enable_request_ids=not getattr(args, "no_request_id", False),
+                cache=batch_cache,
             )
     finally:
         if progress_ctx is not None:
             progress_ctx.stop()
+
+    # Print cache stats if caching was active
+    if batch_cache is not None:
+        cs = batch_cache.stats()
+        if cs.hits + cs.misses > 0:
+            print(f"\nCache: {cs.hits} hits, {cs.misses} misses ({cs.hit_rate:.0%} hit rate)")
 
     if multi_report is not None:
         # Multi-target mode
@@ -1244,6 +1288,26 @@ def _run_aggregate(args: argparse.Namespace) -> None:
         Path(args.json_path).write_text(agg_report.to_json())
         print(f"\nAggregated report exported to {args.json_path}")
 
+
+
+def _run_cache(args: argparse.Namespace) -> None:
+    """Manage response cache."""
+    from xpyd_acc.cache import DEFAULT_CACHE_DIR, DEFAULT_TTL, ResponseCache
+
+    cache_dir = getattr(args, "cache_dir", None) or DEFAULT_CACHE_DIR
+    cache = ResponseCache(cache_dir=cache_dir, ttl=DEFAULT_TTL)
+
+    action = getattr(args, "cache_action", None)
+    if action == "clear":
+        count = cache.clear()
+        print(f"Cleared {count} cached entries from {cache_dir}")
+    elif action == "stats":
+        stats = cache.stats()
+        print(f"Cache directory: {cache_dir}")
+        print(f"Entries: {stats.entry_count}")
+        print(f"Total size: {stats.total_size_bytes:,} bytes")
+    else:
+        print("Usage: xpyd-acc cache {clear|stats}")
 
 
 def _run_watch(args: argparse.Namespace) -> None:

@@ -197,6 +197,7 @@ async def _collect_output(
     sampling_params: Any | None = None,
     timeout: float = 120.0,
     request_id: str | None = None,
+    cache: Any | None = None,
 ) -> tuple[str, list[dict[str, Any]], str]:
     """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list, request_id).
 
@@ -207,10 +208,18 @@ async def _collect_output(
         timeout: HTTP request timeout in seconds (default 120.0).
         request_id: Optional request ID to attach as X-Request-ID header.
             If None, no header is sent.
+        cache: Optional ResponseCache instance for caching responses.
     """
     import httpx
 
     from xpyd_acc.retry import retry_async
+
+    # Check cache first
+    sp_dict = sampling_params.to_payload() if sampling_params is not None else None
+    if cache is not None:
+        entry = cache.get(url, model, prompt, sp_dict)
+        if entry is not None:
+            return entry.text, entry.logprobs, entry.request_id
 
     payload: dict[str, Any] = {
         "model": model,
@@ -239,7 +248,15 @@ async def _collect_output(
         logprobs_content = choice.get("logprobs", {}).get("content", [])
         return text, logprobs_content, rid
 
-    return await retry_async(_do_request, retries=retries, base_delay=retry_delay)
+    text, logprobs_list, out_rid = await retry_async(
+        _do_request, retries=retries, base_delay=retry_delay,
+    )
+
+    # Store in cache
+    if cache is not None:
+        cache.put(url, model, prompt, text, logprobs_list, out_rid, sp_dict)
+
+    return text, logprobs_list, out_rid
 
 
 async def run_batch(
@@ -260,6 +277,7 @@ async def run_batch(
     timeout: float = 120.0,
     enable_request_ids: bool = True,
     deduplicate: bool = False,
+    cache: Any | None = None,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -305,6 +323,7 @@ async def run_batch(
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
                 request_id=b_rid if enable_request_ids else None,
+                cache=cache,
             )
             target_text, target_lp, t_rid_out = await _collect_output(
                 target_url, prompt, model=model,
@@ -312,6 +331,7 @@ async def run_batch(
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
                 request_id=t_rid if enable_request_ids else None,
+                cache=cache,
             )
         return baseline_text, baseline_lp, b_rid_out, target_text, target_lp, t_rid_out
 
