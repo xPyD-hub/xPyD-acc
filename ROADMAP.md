@@ -282,7 +282,7 @@
 - Dramatically speeds up reruns and iterative debugging sessions
 - Tests for cache hit/miss, TTL expiry, clear, stats, and no-cache bypass
 
-## M37: Result History & Trend Tracking
+## M37: Result History & Trend Tracking ✅
 - `xpyd-acc history save --report <path> --tag <label>` stores a batch report in local history DB
 - `xpyd-acc history list` shows all saved reports with date, tag, divergence rate
 - `xpyd-acc history trend --last <n>` shows divergence rate trend across last N runs
