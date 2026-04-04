@@ -98,6 +98,10 @@ def main(argv: list[str] | None = None) -> None:
         "--retry-delay", type=float, default=None,
         help="Base retry delay in seconds (default: 1.0)",
     )
+    bc.add_argument(
+        "--no-progress", action="store_true", default=False,
+        help="Disable progress bar during batch comparison",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -184,18 +188,56 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
     samples = load_dataset(args.dataset)
     print(f"Loaded {len(samples)} samples from {args.dataset}")
 
-    report = await run_batch(
-        samples,
-        args.baseline,
-        args.target,
-        model=args.model,
-        max_tokens=args.max_tokens,
-        api_key=args.api_key,
-        logprob_gap_threshold=args.logprob_gap_threshold,
-        concurrency=args.concurrency,
-        retries=args.retries,
-        retry_delay=args.retry_delay,
-    )
+    # Set up Rich progress bar unless disabled or non-TTY
+    use_progress = not args.no_progress and sys.stderr.isatty()
+    progress_ctx = None
+    task_id = None
+
+    if use_progress:
+        from rich.progress import (
+            BarColumn,
+            MofNCompleteColumn,
+            Progress,
+            TextColumn,
+            TimeElapsedColumn,
+            TimeRemainingColumn,
+        )
+
+        progress_ctx = Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("•"),
+            TimeElapsedColumn(),
+            TextColumn("•"),
+            TimeRemainingColumn(),
+        )
+
+    def on_progress(completed: int, total: int) -> None:
+        if progress_ctx is not None and task_id is not None:
+            progress_ctx.update(task_id, completed=completed)
+
+    if progress_ctx is not None:
+        progress_ctx.start()
+        task_id = progress_ctx.add_task("Comparing samples", total=len(samples))
+
+    try:
+        report = await run_batch(
+            samples,
+            args.baseline,
+            args.target,
+            model=args.model,
+            max_tokens=args.max_tokens,
+            api_key=args.api_key,
+            logprob_gap_threshold=args.logprob_gap_threshold,
+            concurrency=args.concurrency,
+            retries=args.retries,
+            retry_delay=args.retry_delay,
+            on_progress=on_progress if use_progress else None,
+        )
+    finally:
+        if progress_ctx is not None:
+            progress_ctx.stop()
 
     print()
     print(format_report(report))

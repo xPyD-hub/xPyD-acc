@@ -9,7 +9,7 @@ import json
 import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass
@@ -228,10 +228,17 @@ async def run_batch(
     concurrency: int = 5,
     retries: int = 3,
     retry_delay: float = 1.0,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> BatchReport:
-    """Run all samples against both endpoints and produce a report."""
+    """Run all samples against both endpoints and produce a report.
+
+    Args:
+        on_progress: Optional callback called after each sample completes.
+            Receives (completed_count, total_count).
+    """
     semaphore = asyncio.Semaphore(concurrency)
     results: list[SampleResult] = []
+    completed = 0
 
     async def process_sample(sample: DatasetSample) -> SampleResult:
         async with semaphore:
@@ -283,7 +290,17 @@ async def run_batch(
             context_length=ctx_len,
         )
 
-    tasks = [process_sample(s) for s in samples]
+    total = len(samples)
+
+    async def _tracked_sample(sample: DatasetSample) -> SampleResult:
+        nonlocal completed
+        result = await process_sample(sample)
+        completed += 1
+        if on_progress is not None:
+            on_progress(completed, total)
+        return result
+
+    tasks = [_tracked_sample(s) for s in samples]
     results = await asyncio.gather(*tasks)
     results = list(results)
 
