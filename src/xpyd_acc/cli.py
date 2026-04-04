@@ -19,6 +19,10 @@ def _get_version() -> str:
 def _add_sampling_args(parser: argparse.ArgumentParser) -> None:
     """Add --temperature, --top-p, --seed flags to a subcommand parser."""
     parser.add_argument(
+        "--profile", type=str, default=None,
+        help="Named profile/preset to activate (e.g., greedy, stochastic)",
+    )
+    parser.add_argument(
         "--temperature", type=float, default=None,
         help="Sampling temperature (0 for greedy/deterministic)",
     )
@@ -219,6 +223,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     kv.add_argument("--json", action="store_true", help="Output report as JSON")
 
+    sub.add_parser("profiles", help="List available named profiles")
+
     args = parser.parse_args(argv)
     if not args.command:
         parser.print_help()
@@ -238,6 +244,22 @@ def main(argv: list[str] | None = None) -> None:
         merged = merge_cli_args(config, args_dict, args.command)
         for key, val in merged.items():
             setattr(args, key, val)
+
+    # Apply named profile if --profile was specified
+    if hasattr(args, "profile") and args.profile is not None:
+        from xpyd_acc.profiles import apply_profile, parse_profiles, resolve_profile
+
+        user_profiles = parse_profiles(config.profiles_raw) if config is not None else None
+        try:
+            profile = resolve_profile(args.profile, user_profiles)
+        except KeyError as exc:
+            parser.error(str(exc))
+        apply_profile(vars(args), profile)
+
+    # Handle 'profiles' subcommand
+    if args.command == "profiles":
+        _run_profiles(config)
+        return
 
     # Apply environment variable defaults (priority: CLI > env > config > defaults)
     from xpyd_acc.env import get_env_defaults
@@ -316,6 +338,28 @@ async def _preflight_healthcheck(
         print("\nAborting: unhealthy endpoint(s). Use --skip-healthcheck to bypass.")
         sys.exit(1)
     print()
+
+
+def _run_profiles(config: object) -> None:
+    """List all available named profiles."""
+    from xpyd_acc.profiles import list_profiles, parse_profiles
+
+    user_profiles = parse_profiles(config.profiles_raw) if config is not None else None
+    all_profiles = list_profiles(user_profiles)
+
+    if not all_profiles:
+        print("No profiles available.")
+        return
+
+    print("Available profiles:\n")
+    for name in sorted(all_profiles):
+        profile = all_profiles[name]
+        settings = profile.to_dict()
+        if settings:
+            parts = [f"{k}={v}" for k, v in settings.items()]
+            print(f"  {name}: {', '.join(parts)}")
+        else:
+            print(f"  {name}: (empty)")
 
 
 async def _run_healthcheck(args: argparse.Namespace) -> None:
