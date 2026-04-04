@@ -247,6 +247,32 @@ def main(argv: list[str] | None = None) -> None:
         help="Export aggregated report as JSON to this path",
     )
 
+    # watch
+    wp = sub.add_parser("watch", help="Continuous divergence monitoring")
+    wp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    wp.add_argument("--target", required=True, help="Target endpoint URL")
+    wp.add_argument("--prompt", required=True, help="Prompt to compare")
+    wp.add_argument("--model", default=None, help="Model name")
+    wp.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
+    wp.add_argument("--api-key", default=None, help="API key for endpoints")
+    wp.add_argument(
+        "--interval", type=float, default=60.0,
+        help="Seconds between iterations (default: 60)",
+    )
+    wp.add_argument(
+        "--max-iterations", type=int, default=None,
+        help="Stop after N iterations (default: unlimited)",
+    )
+    wp.add_argument(
+        "--alert-threshold", type=int, default=None,
+        help="Exit code 1 after N consecutive failures",
+    )
+    wp.add_argument("--log", default=None, dest="log_path", help="JSON log file path")
+    wp.add_argument("--retries", type=int, default=None, help="Max retry attempts")
+    wp.add_argument("--retry-delay", type=float, default=None, help="Base retry delay (seconds)")
+    wp.add_argument("--skip-healthcheck", action="store_true", help="Skip pre-flight healthcheck")
+    _add_sampling_args(wp)
+
     sub.add_parser("profiles", help="List available named profiles")
 
     args = parser.parse_args(argv)
@@ -357,6 +383,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_regression(args)
     elif args.command == "aggregate":
         _run_aggregate(args)
+    elif args.command == "watch":
+        _run_watch(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -983,3 +1011,53 @@ def _run_aggregate(args: argparse.Namespace) -> None:
         Path(args.json_path).write_text(agg_report.to_json())
         print(f"\nAggregated report exported to {args.json_path}")
 
+
+
+def _run_watch(args: argparse.Namespace) -> None:
+    """Run continuous watch mode."""
+    from xpyd_acc.config import load_config
+    from xpyd_acc.env import apply_env_defaults
+    from xpyd_acc.profiles import apply_profile
+    from xpyd_acc.sampling import SamplingParams
+    from xpyd_acc.watch import run_watch
+
+    config = load_config(getattr(args, "config", None))
+    apply_env_defaults(args, config)
+    apply_profile(args, config)
+
+    sampling = SamplingParams.from_args(args)
+    model = args.model or config.get("defaults", {}).get("model", "default")
+    max_tokens = args.max_tokens or config.get("defaults", {}).get("max_tokens", 64)
+    api_key = args.api_key or config.get("defaults", {}).get("api_key")
+    defaults = config.get("defaults", {})
+    retries = args.retries if args.retries is not None else defaults.get("retries", 3)
+    retry_delay = (
+        args.retry_delay if args.retry_delay is not None
+        else defaults.get("retry_delay", 1.0)
+    )
+
+    if not getattr(args, "skip_healthcheck", False):
+        asyncio.run(_preflight_healthcheck(
+            [args.baseline, args.target],
+            api_key=api_key or "no-key",
+        ))
+
+    summary = asyncio.run(run_watch(
+        baseline_url=args.baseline,
+        target_url=args.target,
+        prompt=args.prompt,
+        model=model,
+        max_tokens=max_tokens,
+        api_key=api_key,
+        interval=args.interval,
+        max_iterations=args.max_iterations,
+        alert_threshold=args.alert_threshold,
+        log_path=args.log_path,
+        retries=retries,
+        retry_delay=retry_delay,
+        sampling_params=sampling,
+        no_live=False,
+    ))
+
+    if args.alert_threshold and summary.consecutive_failures_at_end >= args.alert_threshold:
+        sys.exit(1)
