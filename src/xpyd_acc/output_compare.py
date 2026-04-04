@@ -2,7 +2,68 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+
+_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?")
+
+
+@dataclass
+class MatchConfig:
+    """Configuration for tolerance-based matching."""
+
+    normalize_whitespace: bool = False
+    ignore_case: bool = False
+    numeric_tolerance: float | None = None
+
+
+def _normalize_text(text: str, config: MatchConfig) -> str:
+    """Apply whitespace and case normalization to *text*."""
+    result = text
+    if config.normalize_whitespace:
+        result = " ".join(result.split())
+    if config.ignore_case:
+        result = result.lower()
+    return result
+
+
+def _numbers_close(a_str: str, b_str: str, tolerance: float) -> bool:
+    """Return True if two number strings are within *tolerance*."""
+    try:
+        return abs(float(a_str) - float(b_str)) <= tolerance
+    except ValueError:
+        return False
+
+
+def normalized_match(text1: str, text2: str, config: MatchConfig | None = None) -> bool:
+    """Check whether *text1* and *text2* match under the given tolerances.
+
+    With default (None) config, this is strict exact match.
+    """
+    if config is None:
+        return text1 == text2
+
+    a = _normalize_text(text1, config)
+    b = _normalize_text(text2, config)
+
+    if config.numeric_tolerance is None:
+        return a == b
+
+    # Replace numbers with placeholders, compare non-numeric parts,
+    # then compare each number pair with tolerance.
+    nums_a = _NUMBER_RE.findall(a)
+    nums_b = _NUMBER_RE.findall(b)
+    skeleton_a = _NUMBER_RE.sub("\x00", a)
+    skeleton_b = _NUMBER_RE.sub("\x00", b)
+
+    if skeleton_a != skeleton_b:
+        return False
+    if len(nums_a) != len(nums_b):
+        return False
+    return all(
+        _numbers_close(na, nb, config.numeric_tolerance)
+        for na, nb in zip(nums_a, nums_b)
+    )
 
 
 @dataclass

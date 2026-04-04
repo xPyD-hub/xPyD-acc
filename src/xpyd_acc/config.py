@@ -61,6 +61,15 @@ class ReportConfig:
 
 
 @dataclass
+class MatchingConfig:
+    """Tolerance-based matching settings."""
+
+    normalize_whitespace: bool = False
+    ignore_case: bool = False
+    numeric_tolerance: float | None = None
+
+
+@dataclass
 class AppConfig:
     """Top-level application configuration."""
 
@@ -68,6 +77,7 @@ class AppConfig:
     batch: BatchConfig = field(default_factory=BatchConfig)
     kv: KVConfig = field(default_factory=KVConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
+    matching: MatchingConfig = field(default_factory=MatchingConfig)
 
 
 def _parse_section(data: dict[str, Any], cls: type) -> Any:
@@ -101,8 +111,9 @@ def load_config(path: str | Path) -> AppConfig:
     batch = _parse_section(raw.get("batch", {}), BatchConfig)
     kv = _parse_section(raw.get("kv", {}), KVConfig)
     report = _parse_section(raw.get("report", {}), ReportConfig)
+    matching = _parse_section(raw.get("matching", {}), MatchingConfig)
 
-    return AppConfig(defaults=defaults, batch=batch, kv=kv, report=report)
+    return AppConfig(defaults=defaults, batch=batch, kv=kv, report=report, matching=matching)
 
 
 def discover_config() -> AppConfig | None:
@@ -178,5 +189,17 @@ def merge_cli_args(config: AppConfig, args: dict[str, Any], command: str) -> dic
     elif command == "report":
         if "output" in merged and merged["output"] is None:
             merged["output"] = config.report.output
+
+    # Apply matching config for commands that support tolerance
+    if command in ("batch-compare", "compare-streaming"):
+        matching_map: dict[str, Any] = {
+            "normalize_whitespace": config.matching.normalize_whitespace,
+            "ignore_case": config.matching.ignore_case,
+            "numeric_tolerance": config.matching.numeric_tolerance,
+        }
+        for key, config_val in matching_map.items():
+            if key in merged and (merged[key] is None or merged[key] is False):
+                if config_val is not None and config_val is not False:
+                    merged[key] = config_val
 
     return merged
