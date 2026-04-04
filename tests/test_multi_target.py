@@ -161,10 +161,10 @@ class TestRunMultiBatch:
             nonlocal call_count
             call_count += 1
             if "base" in url:
-                return "baseline output", []
+                return "baseline output", [], ""
             if "t1" in url:
-                return "baseline output", []  # matches
-            return "different output", []  # diverges
+                return "baseline output", [], ""  # matches
+            return "different output", [], ""  # diverges
 
         with patch("xpyd_acc.batch_compare._collect_output", side_effect=mock_collect):
             report = await run_multi_batch(
@@ -188,7 +188,7 @@ class TestRunMultiBatch:
         ]
 
         async def mock_collect(url, prompt, **kwargs):
-            return "output", []
+            return "output", [], ""
 
         progress_calls: list[tuple[int, int]] = []
 

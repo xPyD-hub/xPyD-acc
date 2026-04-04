@@ -338,7 +338,7 @@ class TestOnProgressCallback:
             DatasetSample(id="2", prompt="test"),
         ]
 
-        mock_output = ("response text", [])
+        mock_output = ("response text", [], "")
 
         progress_calls: list[tuple[int, int]] = []
 
@@ -371,7 +371,7 @@ class TestOnProgressCallback:
         from xpyd_acc.batch_compare import DatasetSample, run_batch
 
         samples = [DatasetSample(id="0", prompt="hello")]
-        mock_output = ("response", [])
+        mock_output = ("response", [], "")
 
         with patch("xpyd_acc.batch_compare._collect_output", new_callable=AsyncMock) as mock_co:
             mock_co.return_value = mock_output
