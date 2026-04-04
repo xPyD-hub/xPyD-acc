@@ -106,6 +106,10 @@ def main(argv: list[str] | None = None) -> None:
         "--skip-healthcheck", action="store_true", default=False,
         help="Skip pre-flight endpoint health check",
     )
+    bc.add_argument(
+        "--template", default=None,
+        help="Prompt template: built-in name (gsm8k, mmlu, etc.) or path to YAML/TOML file",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -242,6 +246,17 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
     from xpyd_acc.batch_compare import export_csv, format_report, load_dataset, run_batch
 
     samples = load_dataset(args.dataset)
+
+    # Apply template if specified
+    if args.template:
+        from xpyd_acc.templates import resolve_template
+
+        template = resolve_template(args.template)
+        print(f"Using template: {template.name}")
+        for sample in samples:
+            variables = {"prompt": sample.prompt, **sample.metadata}
+            sample.prompt = template.render(variables)
+
     print(f"Loaded {len(samples)} samples from {args.dataset}")
 
     if not args.skip_healthcheck:
