@@ -223,6 +223,17 @@ def main(argv: list[str] | None = None) -> None:
     )
     kv.add_argument("--json", action="store_true", help="Output report as JSON")
 
+    # aggregate
+    agg = sub.add_parser("aggregate", help="Aggregate multiple batch run reports")
+    agg.add_argument(
+        "--reports", nargs="+", required=True,
+        help="Paths to batch comparison JSON report files",
+    )
+    agg.add_argument(
+        "--json", default=None, dest="json_path",
+        help="Export aggregated report as JSON to this path",
+    )
+
     sub.add_parser("profiles", help="List available named profiles")
 
     args = parser.parse_args(argv)
@@ -322,6 +333,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_report(args)
     elif args.command == "regression":
         _run_regression(args)
+    elif args.command == "aggregate":
+        _run_aggregate(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -926,3 +939,23 @@ def _run_regression(args: argparse.Namespace) -> None:
         print(f"\nRegression report exported to {args.json_path}")
 
     sys.exit(1 if report.has_regressions else 0)
+
+
+def _run_aggregate(args: argparse.Namespace) -> None:
+    """Aggregate multiple batch run reports."""
+    from pathlib import Path
+
+    from xpyd_acc.aggregate import (
+        aggregate_reports,
+        format_aggregated_report,
+        load_batch_report_from_json,
+    )
+
+    reports = [load_batch_report_from_json(p) for p in args.reports]
+    agg_report = aggregate_reports(reports)
+    print(format_aggregated_report(agg_report))
+
+    if getattr(args, "json_path", None):
+        Path(args.json_path).write_text(agg_report.to_json())
+        print(f"\nAggregated report exported to {args.json_path}")
+

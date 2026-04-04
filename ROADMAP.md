@@ -180,3 +180,12 @@
 - `xpyd-acc profiles` subcommand to list available profiles
 - Built-in profiles: `greedy` (temperature=0, seed=42), `stochastic` (temperature=0.7)
 - Reduces repetitive CLI flags for common testing scenarios
+
+## M26: Multi-Run Aggregation
+- `xpyd-acc aggregate --reports r1.json r2.json ...` combines multiple batch run reports
+- Classify each sample: persistent divergence (diverges in all runs), flaky (some runs), stable match (all runs)
+- Per-sample consistency score: fraction of runs where the sample diverged
+- Summary: total persistent, flaky, stable counts and rates
+- Export aggregated report as JSON
+- Rich terminal output with per-sample status
+- Useful for distinguishing real bugs from non-deterministic behavior across multiple runs
