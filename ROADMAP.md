@@ -72,7 +72,7 @@
 - Sections: defaults, batch, kv, report
 - Type-safe config with dataclasses
 
-## M10: JSON Export & Version Flag
+## M10: JSON Export & Version Flag ✅
 - `xpyd-acc --version` prints version string
 - `batch-compare --json <path>` exports full BatchReport as JSON
 - `BatchReport.to_json()` method for programmatic serialization
