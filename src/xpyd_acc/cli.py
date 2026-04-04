@@ -127,6 +127,14 @@ def main(argv: list[str] | None = None) -> None:
         "--numeric-tolerance", type=float, default=None,
         help="Treat numbers within tolerance as equal",
     )
+    bc.add_argument(
+        "--rerun", default=None, metavar="REPORT_JSON",
+        help="Rerun only divergent samples from a previous JSON report",
+    )
+    bc.add_argument(
+        "--rerun-merge", action="store_true", default=False,
+        help="Merge rerun results back into the original report file",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -296,6 +304,11 @@ async def _run_healthcheck(args: argparse.Namespace) -> None:
 
 async def _run_batch_compare(args: argparse.Namespace) -> None:
     """Run batch dataset comparison."""
+    # Handle rerun mode
+    if getattr(args, "rerun", None):
+        await _run_rerun(args)
+        return
+
     # Handle dry run mode
     if getattr(args, "dry_run", False):
         from xpyd_acc.dry_run import format_dry_run, run_dry_run
@@ -421,6 +434,128 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
 
     if args.json_path:
         from pathlib import Path
+        Path(args.json_path).write_text(report.to_json())
+        print(f"\nJSON exported to {args.json_path}")
+
+    if args.markdown:
+        export_markdown(report, args.markdown)
+        print(f"\nMarkdown exported to {args.markdown}")
+
+    if report.divergent_samples > 0:
+        sys.exit(1)
+
+
+async def _run_rerun(args: argparse.Namespace) -> None:
+    """Run selective sample rerun from a previous report."""
+    from pathlib import Path
+
+    from xpyd_acc.batch_compare import (
+        export_csv,
+        export_markdown,
+        format_report,
+        run_batch,
+    )
+    from xpyd_acc.rerun import load_divergent_samples, merge_rerun_results
+
+    plan = load_divergent_samples(args.rerun)
+    print(
+        f"Rerun: {plan.divergent_count} divergent samples "
+        f"out of {plan.total_in_report} total"
+    )
+
+    if not args.skip_healthcheck:
+        await _preflight_healthcheck([args.baseline, args.target], api_key=args.api_key)
+
+    # Apply template if specified
+    if args.template:
+        from xpyd_acc.templates import resolve_template
+
+        template = resolve_template(args.template)
+        print(f"Using template: {template.name}")
+        for sample in plan.divergent_samples:
+            variables = {"prompt": sample.prompt, **sample.metadata}
+            sample.prompt = template.render(variables)
+
+    # Set up Rich progress bar unless disabled or non-TTY
+    use_progress = not args.no_progress and sys.stderr.isatty()
+    progress_ctx = None
+    task_id = None
+
+    if use_progress:
+        from rich.progress import (
+            BarColumn,
+            MofNCompleteColumn,
+            Progress,
+            TextColumn,
+            TimeElapsedColumn,
+            TimeRemainingColumn,
+        )
+
+        progress_ctx = Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("•"),
+            TimeElapsedColumn(),
+            TextColumn("•"),
+            TimeRemainingColumn(),
+        )
+
+    def on_progress(completed: int, total: int) -> None:
+        if progress_ctx is not None and task_id is not None:
+            progress_ctx.update(task_id, completed=completed)
+
+    if progress_ctx is not None:
+        progress_ctx.start()
+        task_id = progress_ctx.add_task("Rerunning samples", total=len(plan.divergent_samples))
+
+    try:
+        from xpyd_acc.output_compare import MatchConfig
+
+        match_config = MatchConfig(
+            normalize_whitespace=args.normalize_whitespace,
+            ignore_case=args.ignore_case,
+            numeric_tolerance=args.numeric_tolerance,
+        )
+        effective_match = match_config if (
+            match_config.normalize_whitespace
+            or match_config.ignore_case
+            or match_config.numeric_tolerance is not None
+        ) else None
+
+        report = await run_batch(
+            plan.divergent_samples,
+            args.baseline,
+            args.target,
+            model=args.model,
+            max_tokens=args.max_tokens,
+            api_key=args.api_key,
+            logprob_gap_threshold=args.logprob_gap_threshold,
+            concurrency=args.concurrency,
+            retries=args.retries,
+            retry_delay=args.retry_delay,
+            on_progress=on_progress if use_progress else None,
+            match_config=effective_match,
+        )
+    finally:
+        if progress_ctx is not None:
+            progress_ctx.stop()
+
+    # Handle merge mode
+    if args.rerun_merge:
+        report = merge_rerun_results(args.rerun, report)
+        # Overwrite the original report
+        Path(args.rerun).write_text(report.to_json())
+        print(f"\nMerged results written back to {args.rerun}")
+
+    print()
+    print(format_report(report))
+
+    if args.csv:
+        export_csv(report, args.csv)
+        print(f"\nCSV exported to {args.csv}")
+
+    if args.json_path:
         Path(args.json_path).write_text(report.to_json())
         print(f"\nJSON exported to {args.json_path}")
 
