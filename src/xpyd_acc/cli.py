@@ -63,6 +63,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     bc.add_argument("--csv", default=None, help="Path to export CSV results")
 
+    rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
+    rp.add_argument("--input", required=True, help="Path to batch results JSON file")
+    rp.add_argument("--output", default="report.html", help="Output HTML file path")
+
     det = sub.add_parser("detect", help="Detect xPyD endpoint type")
     det.add_argument("url", help="Endpoint URL to probe")
     det.add_argument("--timeout", type=float, default=10.0, help="Request timeout in seconds")
@@ -97,6 +101,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_check_kv(args)
     elif args.command == "diagnose":
         asyncio.run(_run_diagnose(args))
+    elif args.command == "report":
+        _run_report(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -239,3 +245,49 @@ def _run_check_kv(args: argparse.Namespace) -> None:
 
     if not report.match:
         sys.exit(1)
+
+
+def _run_report(args: argparse.Namespace) -> None:
+    """Generate HTML report from batch results JSON."""
+    import json as json_mod
+    from pathlib import Path
+
+    from xpyd_acc.batch_compare import BatchReport, SampleResult
+    from xpyd_acc.report import write_html_report
+
+    data = json_mod.loads(Path(args.input).read_text())
+
+    results = []
+    for r in data["results"]:
+        results.append(SampleResult(
+            sample_id=r["sample_id"],
+            prompt=r["prompt"],
+            baseline_output=r["baseline_output"],
+            target_output=r["target_output"],
+            exact_match=r["exact_match"],
+            first_divergence_index=r.get("first_divergence_index"),
+            baseline_logprob_at_divergence=r.get("baseline_logprob_at_divergence"),
+            target_logprob_at_divergence=r.get("target_logprob_at_divergence"),
+            logprob_gap=r.get("logprob_gap"),
+            classification=r.get("classification", "unknown"),
+            context_length=r.get("context_length", 0),
+        ))
+
+    report = BatchReport(
+        total_samples=data["total_samples"],
+        divergent_samples=data["divergent_samples"],
+        match_samples=data["match_samples"],
+        divergence_rate=data["divergence_rate"],
+        results=results,
+        divergence_index_mean=data.get("divergence_index_mean"),
+        divergence_index_median=data.get("divergence_index_median"),
+        logprob_gap_mean=data.get("logprob_gap_mean"),
+        logprob_gap_median=data.get("logprob_gap_median"),
+        likely_bugs=data.get("likely_bugs", 0),
+        likely_uncertainty=data.get("likely_uncertainty", 0),
+        unknown_classification=data.get("unknown_classification", 0),
+        divergence_by_context_length=data.get("divergence_by_context_length", {}),
+    )
+
+    write_html_report(report, args.output)
+    print(f"HTML report written to {args.output}")
