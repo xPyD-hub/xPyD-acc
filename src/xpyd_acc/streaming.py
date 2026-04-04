@@ -64,6 +64,7 @@ class StreamingCollector:
         max_tokens: int = 64,
         *,
         timeout: float = 60.0,
+        sampling_params: Any | None = None,
     ) -> AsyncIterator[StreamToken]:
         """Send prompt and yield tokens as they arrive via SSE.
 
@@ -72,12 +73,14 @@ class StreamingCollector:
         """
         url = f"{self.base_url}/v1/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}"}
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": max_tokens,
             "stream": True,
         }
+        if sampling_params is not None:
+            payload.update(sampling_params.to_payload())
 
         index = 0
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -120,10 +123,13 @@ async def collect_stream(
     max_tokens: int = 64,
     *,
     timeout: float = 60.0,
+    sampling_params: Any | None = None,
 ) -> list[StreamToken]:
     """Collect all tokens from a streaming endpoint into a list."""
     tokens: list[StreamToken] = []
-    async for token in collector.stream(prompt, max_tokens, timeout=timeout):
+    async for token in collector.stream(
+        prompt, max_tokens, timeout=timeout, sampling_params=sampling_params,
+    ):
         tokens.append(token)
     return tokens
 
@@ -141,6 +147,7 @@ class StreamingComparator:
         timeout: float = 60.0,
         on_token: None = None,
         match_config: Any | None = None,
+        sampling_params: Any | None = None,
     ) -> StreamingComparisonReport:
         """Run both streams in parallel and compare tokens as they arrive.
 
@@ -159,8 +166,10 @@ class StreamingComparator:
 
         # Collect both streams concurrently
         baseline_tokens, target_tokens = await asyncio.gather(
-            collect_stream(baseline, prompt, max_tokens, timeout=timeout),
-            collect_stream(target, prompt, max_tokens, timeout=timeout),
+            collect_stream(baseline, prompt, max_tokens, timeout=timeout,
+                           sampling_params=sampling_params),
+            collect_stream(target, prompt, max_tokens, timeout=timeout,
+                           sampling_params=sampling_params),
         )
 
         elapsed = time.monotonic() - start

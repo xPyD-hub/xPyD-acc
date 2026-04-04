@@ -16,6 +16,22 @@ def _get_version() -> str:
         return "unknown"
 
 
+def _add_sampling_args(parser: argparse.ArgumentParser) -> None:
+    """Add --temperature, --top-p, --seed flags to a subcommand parser."""
+    parser.add_argument(
+        "--temperature", type=float, default=None,
+        help="Sampling temperature (0 for greedy/deterministic)",
+    )
+    parser.add_argument(
+        "--top-p", type=float, default=None, dest="top_p",
+        help="Nucleus sampling top-p value",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="Random seed for reproducible generation",
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="xpyd-acc",
@@ -44,6 +60,7 @@ def main(argv: list[str] | None = None) -> None:
         "--retry-delay", type=float, default=None,
         help="Base retry delay in seconds (default: 1.0)",
     )
+    _add_sampling_args(lp)
 
     diag = sub.add_parser("diagnose", help="Run full diagnostic pipeline")
     diag.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -68,6 +85,7 @@ def main(argv: list[str] | None = None) -> None:
         help="KV cache cosine similarity threshold (default: 0.999)",
     )
     diag.add_argument("--json", action="store_true", help="Output report as JSON")
+    _add_sampling_args(diag)
 
     oc = sub.add_parser("compare-output", help="Compare text outputs from two endpoints")
     oc_input = oc.add_mutually_exclusive_group(required=True)
@@ -135,6 +153,7 @@ def main(argv: list[str] | None = None) -> None:
         "--rerun-merge", action="store_true", default=False,
         help="Merge rerun results back into the original report file",
     )
+    _add_sampling_args(bc)
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -168,6 +187,7 @@ def main(argv: list[str] | None = None) -> None:
         "--numeric-tolerance", type=float, default=None,
         help="Treat numbers within tolerance as equal",
     )
+    _add_sampling_args(cs)
 
     hc = sub.add_parser("healthcheck", help="Check endpoint health")
     hc.add_argument("url", nargs="+", help="Endpoint URL(s) to check")
@@ -232,6 +252,14 @@ def main(argv: list[str] | None = None) -> None:
     for key, env_val in _ENV_MAPPING.items():
         if env_val is not None and hasattr(args, key) and getattr(args, key) is None:
             setattr(args, key, env_val)
+
+    # Apply numeric env defaults separately (typed)
+    if env.temperature is not None and hasattr(args, "temperature") and args.temperature is None:
+        args.temperature = env.temperature
+    if env.top_p is not None and hasattr(args, "top_p") and args.top_p is None:
+        args.top_p = env.top_p
+    if env.seed is not None and hasattr(args, "seed") and args.seed is None:
+        args.seed = env.seed
 
     # Apply hardcoded defaults for any remaining None values
     _FINAL_DEFAULTS: dict[str, object] = {
@@ -341,7 +369,9 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         load_dataset,
         run_batch,
     )
+    from xpyd_acc.sampling import SamplingParams
 
+    sampling = SamplingParams.from_args(args)
     samples = load_dataset(args.dataset)
 
     # Apply template if specified
@@ -420,6 +450,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             retry_delay=args.retry_delay,
             on_progress=on_progress if use_progress else None,
             match_config=effective_match,
+            sampling_params=sampling,
         )
     finally:
         if progress_ctx is not None:
@@ -456,6 +487,9 @@ async def _run_rerun(args: argparse.Namespace) -> None:
         run_batch,
     )
     from xpyd_acc.rerun import load_divergent_samples, merge_rerun_results
+    from xpyd_acc.sampling import SamplingParams
+
+    sampling = SamplingParams.from_args(args)
 
     plan = load_divergent_samples(args.rerun)
     print(
@@ -536,6 +570,7 @@ async def _run_rerun(args: argparse.Namespace) -> None:
             retry_delay=args.retry_delay,
             on_progress=on_progress if use_progress else None,
             match_config=effective_match,
+            sampling_params=sampling,
         )
     finally:
         if progress_ctx is not None:
@@ -597,7 +632,9 @@ def _run_compare_output(args: argparse.Namespace) -> None:
 async def _run_compare_logprobs(args: argparse.Namespace) -> None:
     """Run logprobs comparison between two endpoints."""
     from xpyd_acc.logprobs import LogprobsCollector, LogprobsComparator
+    from xpyd_acc.sampling import SamplingParams
 
+    sampling = SamplingParams.from_args(args)
     baseline_collector = LogprobsCollector(args.baseline, api_key=args.api_key, model=args.model)
     target_collector = LogprobsCollector(args.target, api_key=args.api_key, model=args.model)
 
@@ -605,12 +642,14 @@ async def _run_compare_logprobs(args: argparse.Namespace) -> None:
     baseline_result = await baseline_collector.collect(
         args.prompt, max_tokens=args.max_tokens,
         retries=args.retries, retry_delay=args.retry_delay,
+        sampling_params=sampling,
     )
 
     print(f"Collecting logprobs from target: {args.target}")
     target_result = await target_collector.collect(
         args.prompt, max_tokens=args.max_tokens,
         retries=args.retries, retry_delay=args.retry_delay,
+        sampling_params=sampling,
     )
 
     comparator = LogprobsComparator()
@@ -625,7 +664,9 @@ async def _run_compare_logprobs(args: argparse.Namespace) -> None:
 async def _run_diagnose(args: argparse.Namespace) -> None:
     """Run the full diagnostic pipeline."""
     from xpyd_acc.diagnose import DiagnosticPipeline, format_rich_report
+    from xpyd_acc.sampling import SamplingParams
 
+    sampling = SamplingParams.from_args(args)
     pipeline = DiagnosticPipeline(
         baseline_url=args.baseline,
         target_url=args.target,
@@ -637,6 +678,7 @@ async def _run_diagnose(args: argparse.Namespace) -> None:
         kv_target_path=args.kv_target,
         kv_max_abs_threshold=args.kv_max_abs_threshold,
         kv_cosine_threshold=args.kv_cosine_threshold,
+        sampling_params=sampling,
     )
 
     report = await pipeline.run()
@@ -654,6 +696,7 @@ async def _run_compare_streaming(args: argparse.Namespace) -> None:
     """Run streaming comparison between two endpoints."""
     import time as time_mod
 
+    from xpyd_acc.sampling import SamplingParams
     from xpyd_acc.streaming import (
         StreamingCollector,
         StreamingComparator,
@@ -661,6 +704,7 @@ async def _run_compare_streaming(args: argparse.Namespace) -> None:
         format_streaming_report,
     )
 
+    sampling = SamplingParams.from_args(args)
     baseline = StreamingCollector(args.baseline, api_key=args.api_key, model=args.model)
     target = StreamingCollector(args.target, api_key=args.api_key, model=args.model)
 
@@ -688,12 +732,14 @@ async def _run_compare_streaming(args: argparse.Namespace) -> None:
         baseline_start = time_mod.monotonic()
         baseline_tokens = await collect_stream(
             baseline, args.prompt, max_tokens=args.max_tokens, timeout=args.timeout,
+            sampling_params=sampling,
         )
         baseline_elapsed = time_mod.monotonic() - baseline_start
 
         target_start = time_mod.monotonic()
         target_tokens = await collect_stream(
             target, args.prompt, max_tokens=args.max_tokens, timeout=args.timeout,
+            sampling_params=sampling,
         )
         target_elapsed = time_mod.monotonic() - target_start
 
@@ -733,6 +779,7 @@ async def _run_compare_streaming(args: argparse.Namespace) -> None:
             max_tokens=args.max_tokens,
             timeout=args.timeout,
             match_config=_eff_match2,
+            sampling_params=sampling,
         )
         print()
         print(format_streaming_report(report))

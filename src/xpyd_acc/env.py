@@ -10,6 +10,9 @@ ENV_API_KEY = "XPYD_ACC_API_KEY"
 ENV_BASELINE_URL = "XPYD_ACC_BASELINE_URL"
 ENV_TARGET_URL = "XPYD_ACC_TARGET_URL"
 ENV_MODEL = "XPYD_ACC_MODEL"
+ENV_TEMPERATURE = "XPYD_ACC_TEMPERATURE"
+ENV_TOP_P = "XPYD_ACC_TOP_P"
+ENV_SEED = "XPYD_ACC_SEED"
 
 
 @dataclass
@@ -20,6 +23,9 @@ class EnvDefaults:
     baseline_url: str | None = None
     target_url: str | None = None
     model: str | None = None
+    temperature: float | None = None
+    top_p: float | None = None
+    seed: int | None = None
 
 
 def get_env_defaults() -> EnvDefaults:
@@ -28,11 +34,18 @@ def get_env_defaults() -> EnvDefaults:
     Returns an EnvDefaults with non-None values only for variables that are set
     and non-empty in the environment.
     """
+    temp_str = os.environ.get(ENV_TEMPERATURE) or None
+    top_p_str = os.environ.get(ENV_TOP_P) or None
+    seed_str = os.environ.get(ENV_SEED) or None
+
     return EnvDefaults(
         api_key=os.environ.get(ENV_API_KEY) or None,
         baseline_url=os.environ.get(ENV_BASELINE_URL) or None,
         target_url=os.environ.get(ENV_TARGET_URL) or None,
         model=os.environ.get(ENV_MODEL) or None,
+        temperature=float(temp_str) if temp_str is not None else None,
+        top_p=float(top_p_str) if top_p_str is not None else None,
+        seed=int(seed_str) if seed_str is not None else None,
     )
 
 
