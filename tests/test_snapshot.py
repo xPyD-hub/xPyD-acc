@@ -146,7 +146,7 @@ class TestCaptureSnapshot:
         async def mock_collect(url, prompt, **kwargs):
             nonlocal call_count
             call_count += 1
-            return (f"reply-{prompt}", [{"token": "r", "logprob": -0.1}])
+            return (f"reply-{prompt}", [{"token": "r", "logprob": -0.1}], "")
 
         with patch("xpyd_acc.snapshot._collect_output", side_effect=mock_collect):
             snap = await capture_snapshot(
@@ -167,7 +167,7 @@ class TestCaptureSnapshot:
         progress_calls = []
 
         async def mock_collect(url, prompt, **kwargs):
-            return ("out", [])
+            return ("out", [], "")
 
         with patch("xpyd_acc.snapshot._collect_output", side_effect=mock_collect):
             await capture_snapshot(

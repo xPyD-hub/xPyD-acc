@@ -80,7 +80,7 @@ async def capture_snapshot(
     async def _capture_one(sample: DatasetSample) -> SnapshotSample:
         nonlocal completed
         async with semaphore:
-            text, logprobs = await _collect_output(
+            text, logprobs, _rid = await _collect_output(
                 baseline_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,

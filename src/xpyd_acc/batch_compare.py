@@ -7,6 +7,7 @@ import csv
 import io
 import json
 import statistics
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -41,6 +42,8 @@ class SampleResult:
     logprob_gap: float | None  # top1 - top2 gap at divergence point
     classification: str  # "match", "likely_bug", "likely_uncertainty", "unknown"
     context_length: int  # number of prompt tokens (approximated)
+    # Map of role to UUID, e.g. {"baseline": "...", "target": "..."}
+    request_ids: dict[str, str] = field(default_factory=dict)
 
     def is_divergent(self) -> bool:
         """Whether this sample diverged."""
@@ -99,6 +102,7 @@ class BatchReport:
                     "logprob_gap": r.logprob_gap,
                     "classification": r.classification,
                     "context_length": r.context_length,
+                    "request_ids": r.request_ids,
                 }
                 for r in self.results
             ],
@@ -192,14 +196,17 @@ async def _collect_output(
     retry_delay: float = 1.0,
     sampling_params: Any | None = None,
     timeout: float = 120.0,
-) -> tuple[str, list[dict[str, Any]]]:
-    """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list).
+    request_id: str | None = None,
+) -> tuple[str, list[dict[str, Any]], str]:
+    """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list, request_id).
 
-    Returns a tuple of (generated_text, logprobs_per_token).
+    Returns a tuple of (generated_text, logprobs_per_token, request_id).
     Each logprob entry has: {"token": str, "logprob": float, "top_logprobs": [...]}.
 
     Args:
         timeout: HTTP request timeout in seconds (default 120.0).
+        request_id: Optional request ID to attach as X-Request-ID header.
+            If None, no header is sent.
     """
     import httpx
 
@@ -214,9 +221,13 @@ async def _collect_output(
     }
     if sampling_params is not None:
         payload.update(sampling_params.to_payload())
-    headers = {"Authorization": f"Bearer {api_key}"}
+    headers: dict[str, str] = {"Authorization": f"Bearer {api_key}"}
+    rid = request_id or ""
+    if rid:
+        headers["X-Request-ID"] = rid
+        logger.debug("Request ID %s for %s", rid, url)
 
-    async def _do_request() -> tuple[str, list[dict[str, Any]]]:
+    async def _do_request() -> tuple[str, list[dict[str, Any]], str]:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
                 f"{url}/v1/chat/completions", json=payload, headers=headers,
@@ -226,7 +237,7 @@ async def _collect_output(
         choice = data["choices"][0]
         text = choice["message"]["content"]
         logprobs_content = choice.get("logprobs", {}).get("content", [])
-        return text, logprobs_content
+        return text, logprobs_content, rid
 
     return await retry_async(_do_request, retries=retries, base_delay=retry_delay)
 
@@ -247,6 +258,7 @@ async def run_batch(
     match_config: Any | None = None,
     sampling_params: Any | None = None,
     timeout: float = 120.0,
+    enable_request_ids: bool = True,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -254,6 +266,7 @@ async def run_batch(
         on_progress: Optional callback called after each sample completes.
             Receives (completed_count, total_count).
         timeout: HTTP request timeout in seconds (default 120.0).
+        enable_request_ids: Attach X-Request-ID headers to API requests.
     """
     logger.info("Starting batch comparison: %d samples, concurrency=%d", len(samples), concurrency)
     semaphore = asyncio.Semaphore(concurrency)
@@ -261,18 +274,22 @@ async def run_batch(
     completed = 0
 
     async def process_sample(sample: DatasetSample) -> SampleResult:
+        b_rid = str(uuid.uuid4()) if enable_request_ids else ""
+        t_rid = str(uuid.uuid4()) if enable_request_ids else ""
         async with semaphore:
-            baseline_text, baseline_lp = await _collect_output(
+            baseline_text, baseline_lp, b_rid_out = await _collect_output(
                 baseline_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
+                request_id=b_rid if enable_request_ids else None,
             )
-            target_text, target_lp = await _collect_output(
+            target_text, target_lp, t_rid_out = await _collect_output(
                 target_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
+                request_id=t_rid if enable_request_ids else None,
             )
 
         b_tokens = _tokenize(baseline_text)
@@ -301,6 +318,12 @@ async def run_batch(
         )
         ctx_len = len(_tokenize(sample.prompt))
 
+        req_ids: dict[str, str] = {}
+        if b_rid_out:
+            req_ids["baseline"] = b_rid_out
+        if t_rid_out:
+            req_ids["target"] = t_rid_out
+
         return SampleResult(
             sample_id=sample.id,
             prompt=sample.prompt,
@@ -313,6 +336,7 @@ async def run_batch(
             logprob_gap=gap,
             classification=classification,
             context_length=ctx_len,
+            request_ids=req_ids,
         )
 
     total = len(samples)
@@ -692,7 +716,7 @@ async def run_multi_batch(
     # Step 1: Collect baseline outputs for all samples
     async def collect_baseline(sample: DatasetSample) -> tuple[str, str, list[dict[str, Any]]]:
         async with semaphore:
-            text, lp = await _collect_output(
+            text, lp, _rid = await _collect_output(
                 baseline_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
@@ -715,7 +739,7 @@ async def run_multi_batch(
     ) -> SampleResult:
         nonlocal completed
         async with semaphore:
-            target_text, target_lp = await _collect_output(
+            target_text, target_lp, _rid = await _collect_output(
                 target_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,

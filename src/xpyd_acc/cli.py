@@ -182,6 +182,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Fail (exit 1) if divergence rate exceeds this threshold (0.0–1.0)",
     )
     _add_sampling_args(bc)
+    bc.add_argument(
+        "--no-request-id", action="store_true", default=False,
+        help="Disable X-Request-ID headers on API requests",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -1350,7 +1354,7 @@ async def _run_batch_with_snapshot(args: argparse.Namespace) -> None:
         baseline_lp = snap_sample.logprobs
 
         async with semaphore:
-            target_text, target_lp = await _collect_output(
+            target_text, target_lp, _rid = await _collect_output(
                 args.target, sample.prompt,
                 model=args.model or snapshot.model,
                 max_tokens=args.max_tokens or 64,

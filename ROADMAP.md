@@ -242,3 +242,11 @@
 - Cross-target agreement matrix (do different targets agree with each other?)
 - JSON/CSV/Markdown export includes per-target breakdowns
 - Useful for comparing different PD configurations side by side
+
+## M33: Request ID Tracking for API Call Correlation
+- All HTTP requests include `X-Request-ID` header with a UUID4 value
+- `SampleResult` includes `request_ids` field (baseline + target request IDs)
+- Request IDs appear in JSON export output
+- Request IDs logged at DEBUG level
+- `--no-request-id` flag to disable the feature
+- Tests for request ID generation and header injection
