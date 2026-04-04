@@ -76,3 +76,18 @@
 - `xpyd-acc --version` prints version string
 - `batch-compare --json <path>` exports full BatchReport as JSON
 - `BatchReport.to_json()` method for programmatic serialization
+
+## M11: HTTP Retry with Exponential Backoff
+- Reusable async retry decorator for all HTTP requests
+- Retry on: connection errors, timeouts, HTTP 429/502/503/504
+- Exponential backoff with jitter, Retry-After header support
+- CLI flags: `--retries`, `--retry-delay`
+- TOML config support in `[defaults]` section
+
+## M12: Progress Bars for Batch Comparison
+- Rich progress bars during batch dataset runs
+- Per-sample progress tracking with ETA
+
+## M13: Streaming Output Comparison
+- Compare SSE streaming responses token-by-token
+- Real-time divergence detection during streaming

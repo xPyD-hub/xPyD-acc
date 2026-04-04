@@ -31,6 +31,8 @@ class DefaultsConfig:
     model: str = "default"
     api_key: str = "no-key"
     max_tokens: int = 64
+    retries: int = 3
+    retry_delay: float = 1.0
 
 
 @dataclass
@@ -137,6 +139,8 @@ def merge_cli_args(config: AppConfig, args: dict[str, Any], command: str) -> dic
         "model": config.defaults.model,
         "api_key": config.defaults.api_key,
         "max_tokens": config.defaults.max_tokens,
+        "retries": config.defaults.retries,
+        "retry_delay": config.defaults.retry_delay,
     }
 
     for key, config_val in defaults_map.items():

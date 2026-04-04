@@ -39,6 +39,11 @@ def main(argv: list[str] | None = None) -> None:
     lp.add_argument("--model", default=None, help="Model name (default: default)")
     lp.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
     lp.add_argument("--api-key", default=None, help="API key for both endpoints")
+    lp.add_argument("--retries", type=int, default=None, help="Max retry attempts (default: 3)")
+    lp.add_argument(
+        "--retry-delay", type=float, default=None,
+        help="Base retry delay in seconds (default: 1.0)",
+    )
 
     diag = sub.add_parser("diagnose", help="Run full diagnostic pipeline")
     diag.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -47,6 +52,11 @@ def main(argv: list[str] | None = None) -> None:
     diag.add_argument("--model", default=None, help="Model name (default: default)")
     diag.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
     diag.add_argument("--api-key", default=None, help="API key for endpoints")
+    diag.add_argument("--retries", type=int, default=None, help="Max retry attempts (default: 3)")
+    diag.add_argument(
+        "--retry-delay", type=float, default=None,
+        help="Base retry delay in seconds (default: 1.0)",
+    )
     diag.add_argument("--kv-baseline", default=None, help="Path to baseline KV cache (.npz)")
     diag.add_argument("--kv-target", default=None, help="Path to target KV cache (.npz)")
     diag.add_argument(
@@ -83,6 +93,11 @@ def main(argv: list[str] | None = None) -> None:
     )
     bc.add_argument("--csv", default=None, help="Path to export CSV results")
     bc.add_argument("--json", default=None, dest="json_path", help="Path to export JSON results")
+    bc.add_argument("--retries", type=int, default=None, help="Max retry attempts (default: 3)")
+    bc.add_argument(
+        "--retry-delay", type=float, default=None,
+        help="Base retry delay in seconds (default: 1.0)",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -133,6 +148,8 @@ def main(argv: list[str] | None = None) -> None:
         "concurrency": 5,
         "logprob_gap_threshold": 0.1,
         "output": "report.html",
+        "retries": 3,
+        "retry_delay": 1.0,
         "max_abs_threshold": 1e-3,
         "cosine_threshold": 0.999,
         "kv_max_abs_threshold": 1e-3,
@@ -176,6 +193,8 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         api_key=args.api_key,
         logprob_gap_threshold=args.logprob_gap_threshold,
         concurrency=args.concurrency,
+        retries=args.retries,
+        retry_delay=args.retry_delay,
     )
 
     print()
@@ -229,10 +248,16 @@ async def _run_compare_logprobs(args: argparse.Namespace) -> None:
     target_collector = LogprobsCollector(args.target, api_key=args.api_key, model=args.model)
 
     print(f"Collecting logprobs from baseline: {args.baseline}")
-    baseline_result = await baseline_collector.collect(args.prompt, max_tokens=args.max_tokens)
+    baseline_result = await baseline_collector.collect(
+        args.prompt, max_tokens=args.max_tokens,
+        retries=args.retries, retry_delay=args.retry_delay,
+    )
 
     print(f"Collecting logprobs from target: {args.target}")
-    target_result = await target_collector.collect(args.prompt, max_tokens=args.max_tokens)
+    target_result = await target_collector.collect(
+        args.prompt, max_tokens=args.max_tokens,
+        retries=args.retries, retry_delay=args.retry_delay,
+    )
 
     comparator = LogprobsComparator()
     report = comparator.compare(baseline_result, target_result)
