@@ -137,3 +137,11 @@
 - Reports: number of samples, estimated tokens, resolved config values
 - Exits 0 if all validations pass, non-zero with actionable error messages
 - Useful for CI pipelines and pre-flight validation before long batch runs
+
+## M21: Regression Detection
+- `xpyd-acc regression --baseline <old.json> --current <new.json>` compares two batch runs
+- Detects regressions (previously matched, now diverges), fixes, and persistent issues
+- Summary: regression count, fix count, net change, divergence rate comparison
+- Exit 0 if no regressions, exit 1 if regressions found (CI-friendly)
+- JSON export for regression reports
+- Rich terminal output with clear pass/fail indicators
