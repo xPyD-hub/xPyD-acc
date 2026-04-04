@@ -63,6 +63,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     bc.add_argument("--csv", default=None, help="Path to export CSV results")
 
+    det = sub.add_parser("detect", help="Detect xPyD endpoint type")
+    det.add_argument("url", help="Endpoint URL to probe")
+    det.add_argument("--timeout", type=float, default=10.0, help="Request timeout in seconds")
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -87,6 +91,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_compare_output(args)
     elif args.command == "compare-logprobs":
         asyncio.run(_run_compare_logprobs(args))
+    elif args.command == "detect":
+        asyncio.run(_run_detect(args))
     elif args.command == "check-kv":
         _run_check_kv(args)
     elif args.command == "diagnose":
@@ -199,6 +205,14 @@ async def _run_diagnose(args: argparse.Namespace) -> None:
 
     if not report.overall_pass:
         sys.exit(1)
+
+
+async def _run_detect(args: argparse.Namespace) -> None:
+    """Run endpoint type detection."""
+    from xpyd_acc.ecosystem import detect_endpoint_type, format_detect_report
+
+    info = await detect_endpoint_type(args.url, timeout=args.timeout)
+    print(format_detect_report(info))
 
 
 def _run_check_kv(args: argparse.Namespace) -> None:
