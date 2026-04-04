@@ -657,6 +657,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 sampling_params=sampling,
                 timeout=args.timeout,
                 deduplicate=getattr(args, "deduplicate", False),
+                enable_request_ids=not getattr(args, "no_request_id", False),
             )
     finally:
         if progress_ctx is not None:
@@ -868,6 +869,7 @@ async def _run_rerun(args: argparse.Namespace) -> None:
             sampling_params=sampling,
             timeout=args.timeout,
             deduplicate=getattr(args, "deduplicate", False),
+            enable_request_ids=not getattr(args, "no_request_id", False),
         )
     finally:
         if progress_ctx is not None:

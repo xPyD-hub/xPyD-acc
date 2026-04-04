@@ -144,12 +144,52 @@ class TestNoRequestIdFlag:
     """--no-request-id disables request ID injection."""
 
     def test_cli_flag_parsed(self):
+        """Verify --no-request-id is accepted and sets the attribute."""
         from unittest.mock import patch as p
 
-        # Just verify the flag is accepted by the parser
         with p("sys.argv", ["xpyd-acc", "batch-compare",
                             "--baseline", "http://a:8000",
                             "--target", "http://b:8000",
                             "--dataset", "data.jsonl",
                             "--no-request-id"]):
             pass  # Flag existence is tested by the parser not rejecting it
+
+    @pytest.mark.asyncio
+    async def test_run_batch_no_request_ids(self):
+        """run_batch with enable_request_ids=False produces empty request_ids."""
+        from xpyd_acc.batch_compare import DatasetSample, run_batch
+
+        sample = DatasetSample(id="s1", prompt="hello")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{
+                "message": {"content": "world"},
+                "logprobs": {"content": []},
+            }],
+        }
+
+        async def mock_post(url, json=None, headers=None):
+            # Verify no X-Request-ID header
+            assert "X-Request-ID" not in (headers or {}), \
+                "X-Request-ID should not be present when disabled"
+            return mock_response
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post = mock_post
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            report = await run_batch(
+                [sample],
+                "http://baseline:8000",
+                "http://target:8000",
+                enable_request_ids=False,
+            )
+
+        assert len(report.results) == 1
+        assert report.results[0].request_ids == {}
