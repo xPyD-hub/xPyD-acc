@@ -77,7 +77,7 @@
 - `batch-compare --json <path>` exports full BatchReport as JSON
 - `BatchReport.to_json()` method for programmatic serialization
 
-## M11: HTTP Retry with Exponential Backoff
+## M11: HTTP Retry with Exponential Backoff ✅
 - Reusable async retry decorator for all HTTP requests
 - Retry on: connection errors, timeouts, HTTP 429/502/503/504
 - Exponential backoff with jitter, Retry-After header support
