@@ -284,3 +284,63 @@ class TestCliParsing:
             main(["batch-compare", "--help"])
         except SystemExit:
             pass  # --help causes SystemExit(0)
+
+
+class TestOnProgressCallback:
+    """Test that run_batch invokes the on_progress callback."""
+
+    def test_progress_callback_called(self) -> None:
+        """Verify on_progress is called once per sample with correct counts."""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        from xpyd_acc.batch_compare import DatasetSample, run_batch
+
+        samples = [
+            DatasetSample(id="0", prompt="hello"),
+            DatasetSample(id="1", prompt="world"),
+            DatasetSample(id="2", prompt="test"),
+        ]
+
+        mock_output = ("response text", [])
+
+        progress_calls: list[tuple[int, int]] = []
+
+        def track_progress(completed: int, total: int) -> None:
+            progress_calls.append((completed, total))
+
+        with patch("xpyd_acc.batch_compare._collect_output", new_callable=AsyncMock) as mock_co:
+            mock_co.return_value = mock_output
+            report = asyncio.run(run_batch(
+                samples,
+                "http://baseline",
+                "http://target",
+                on_progress=track_progress,
+            ))
+
+        assert report.total_samples == 3
+        # Should have 3 progress calls, one per sample
+        assert len(progress_calls) == 3
+        # All calls should have total=3
+        assert all(t == 3 for _, t in progress_calls)
+        # Final call should have completed=3
+        completed_values = sorted(c for c, _ in progress_calls)
+        assert completed_values[-1] == 3
+
+    def test_no_progress_callback(self) -> None:
+        """Verify run_batch works fine without on_progress."""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        from xpyd_acc.batch_compare import DatasetSample, run_batch
+
+        samples = [DatasetSample(id="0", prompt="hello")]
+        mock_output = ("response", [])
+
+        with patch("xpyd_acc.batch_compare._collect_output", new_callable=AsyncMock) as mock_co:
+            mock_co.return_value = mock_output
+            report = asyncio.run(run_batch(
+                samples, "http://baseline", "http://target",
+            ))
+
+        assert report.total_samples == 1

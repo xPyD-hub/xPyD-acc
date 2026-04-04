@@ -84,9 +84,10 @@
 - CLI flags: `--retries`, `--retry-delay`
 - TOML config support in `[defaults]` section
 
-## M12: Progress Bars for Batch Comparison
+## M12: Progress Bars for Batch Comparison ✅
 - Rich progress bars during batch dataset runs
 - Per-sample progress tracking with ETA
+- `--no-progress` CLI flag and auto-disable for non-TTY
 
 ## M13: Streaming Output Comparison
 - Compare SSE streaming responses token-by-token
