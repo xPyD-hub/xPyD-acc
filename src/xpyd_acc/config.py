@@ -81,6 +81,7 @@ class AppConfig:
     kv: KVConfig = field(default_factory=KVConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
     matching: MatchingConfig = field(default_factory=MatchingConfig)
+    profiles_raw: dict[str, Any] = field(default_factory=dict)
 
 
 def _parse_section(data: dict[str, Any], cls: type) -> Any:
@@ -115,8 +116,12 @@ def load_config(path: str | Path) -> AppConfig:
     kv = _parse_section(raw.get("kv", {}), KVConfig)
     report = _parse_section(raw.get("report", {}), ReportConfig)
     matching = _parse_section(raw.get("matching", {}), MatchingConfig)
+    profiles_raw = raw.get("profiles", {})
 
-    return AppConfig(defaults=defaults, batch=batch, kv=kv, report=report, matching=matching)
+    return AppConfig(
+        defaults=defaults, batch=batch, kv=kv, report=report,
+        matching=matching, profiles_raw=profiles_raw,
+    )
 
 
 def discover_config() -> AppConfig | None:
