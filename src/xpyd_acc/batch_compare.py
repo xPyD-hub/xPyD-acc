@@ -360,25 +360,42 @@ def compute_report(
     return report
 
 
-def export_csv(report: BatchReport, path: str | Path | None = None) -> str:
-    """Export results as CSV. Returns CSV string. If path given, also writes to file."""
+def _truncate(text: str, max_length: int) -> str:
+    """Truncate text to max_length, appending '...' if truncated."""
+    if len(text) <= max_length:
+        return text
+    return text[: max_length - 3] + "..."
+
+
+def export_csv(
+    report: BatchReport,
+    path: str | Path | None = None,
+    *,
+    prompt_max_length: int = 200,
+) -> str:
+    """Export results as CSV. Returns CSV string. If path given, also writes to file.
+
+    Args:
+        report: The batch report to export.
+        path: Optional file path to write CSV to.
+        prompt_max_length: Max length for prompt column (default 200). Set 0 for no truncation.
+    """
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
-        "sample_id", "exact_match", "first_divergence_index",
-        "logprob_gap", "classification", "context_length",
-        "baseline_output", "target_output",
+        "sample_id", "prompt", "baseline_output", "target_output",
+        "match", "divergence_index", "logprob_gap",
     ])
     for r in report.results:
+        prompt = r.prompt if prompt_max_length <= 0 else _truncate(r.prompt, prompt_max_length)
         writer.writerow([
             r.sample_id,
+            prompt,
+            r.baseline_output,
+            r.target_output,
             r.exact_match,
             r.first_divergence_index if r.first_divergence_index is not None else "",
             f"{r.logprob_gap:.6f}" if r.logprob_gap is not None else "",
-            r.classification,
-            r.context_length,
-            r.baseline_output,
-            r.target_output,
         ])
     csv_str = output.getvalue()
     if path is not None:
