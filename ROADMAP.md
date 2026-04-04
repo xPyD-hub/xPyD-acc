@@ -3,7 +3,7 @@
 ## M1: Project Skeleton ✅
 - Basic project structure, CLI stub, CI
 
-## M2: Logprobs Comparison Tool ⬜
+## M2: Logprobs Comparison Tool ✅
 - Send same prompt to two endpoints
 - Collect logprobs token by token
 - Find first divergence point
