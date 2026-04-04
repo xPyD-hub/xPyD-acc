@@ -292,3 +292,14 @@
 - Trend output: table with date, tag, divergence rate, delta from previous run
 - Exit code 1 if trend shows increasing divergence (configurable via `--fail-on-regression`)
 - Tests for save, list, trend calculation, regression detection
+
+## M38: Endpoint Latency Benchmarking ✅
+- `xpyd-acc benchmark <url>` sends N requests and measures latency
+- Reports: min, max, mean, p50, p95, p99 latency statistics
+- `--requests <n>` (default 10) and `--concurrency <n>` (default 1) flags
+- `--prompt`, `--model`, `--max-tokens`, `--api-key` flags
+- JSON export via `--json <path>`
+- Rich terminal output with latency distribution table
+- Sampling params support (--temperature, --top-p, --seed, --profile)
+- Graceful error handling (failed requests counted separately)
+- Tests for stats computation, JSON export, error handling

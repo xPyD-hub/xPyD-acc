@@ -377,6 +377,22 @@ def main(argv: list[str] | None = None) -> None:
     )
     hist_trend.add_argument("--history-dir", default=None, help="History directory")
 
+    # benchmark
+    bm = sub.add_parser("benchmark", help="Benchmark endpoint latency")
+    bm.add_argument("url", help="Endpoint URL to benchmark")
+    bm.add_argument("--prompt", default="Hello", help="Prompt to send (default: Hello)")
+    bm.add_argument("--model", default=None, help="Model name")
+    bm.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
+    bm.add_argument("--api-key", default=None, help="API key")
+    bm.add_argument(
+        "--requests", type=int, default=10, help="Number of requests (default: 10)",
+    )
+    bm.add_argument(
+        "--concurrency", type=int, default=1, help="Concurrent requests (default: 1)",
+    )
+    bm.add_argument("--json", default=None, dest="json_path", help="Export JSON report to path")
+    _add_sampling_args(bm)
+
     args = parser.parse_args(argv)
 
     # Setup logging from verbosity flags
@@ -501,8 +517,34 @@ def main(argv: list[str] | None = None) -> None:
         _run_cache(args)
     elif args.command == "history":
         _run_history(args)
+    elif args.command == "benchmark":
+        asyncio.run(_run_benchmark(args))
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
+
+
+async def _run_benchmark(args: argparse.Namespace) -> None:
+    """Run endpoint latency benchmark."""
+    from xpyd_acc.benchmark import run_benchmark
+    from xpyd_acc.sampling import SamplingParams
+
+    sp = SamplingParams(
+        temperature=getattr(args, "temperature", None),
+        top_p=getattr(args, "top_p", None),
+        seed=getattr(args, "seed", None),
+    )
+
+    await run_benchmark(
+        url=args.url,
+        prompt=args.prompt,
+        model=args.model,
+        max_tokens=args.max_tokens,
+        api_key=args.api_key,
+        requests=args.requests,
+        concurrency=args.concurrency,
+        sampling_params=sp,
+        json_path=args.json_path,
+    )
 
 
 async def _preflight_healthcheck(
