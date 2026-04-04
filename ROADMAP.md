@@ -89,6 +89,7 @@
 - Per-sample progress tracking with ETA
 - `--no-progress` CLI flag and auto-disable for non-TTY
 
-## M13: Streaming Output Comparison
+## M13: Streaming Output Comparison ✅
 - Compare SSE streaming responses token-by-token
 - Real-time divergence detection during streaming
+- CLI subcommand `compare-streaming` with `--baseline`, `--target`, `--prompt`
