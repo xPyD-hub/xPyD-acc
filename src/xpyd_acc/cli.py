@@ -102,6 +102,10 @@ def main(argv: list[str] | None = None) -> None:
         "--no-progress", action="store_true", default=False,
         help="Disable progress bar during batch comparison",
     )
+    bc.add_argument(
+        "--skip-healthcheck", action="store_true", default=False,
+        help="Skip pre-flight endpoint health check",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -115,6 +119,15 @@ def main(argv: list[str] | None = None) -> None:
     cs.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
     cs.add_argument("--api-key", default=None, help="API key for both endpoints")
     cs.add_argument("--timeout", type=float, default=60.0, help="HTTP timeout in seconds")
+    cs.add_argument(
+        "--skip-healthcheck", action="store_true", default=False,
+        help="Skip pre-flight endpoint health check",
+    )
+
+    hc = sub.add_parser("healthcheck", help="Check endpoint health")
+    hc.add_argument("url", nargs="+", help="Endpoint URL(s) to check")
+    hc.add_argument("--api-key", default=None, help="API key for endpoints")
+    hc.add_argument("--timeout", type=float, default=10.0, help="Timeout per endpoint in seconds")
 
     det = sub.add_parser("detect", help="Detect xPyD endpoint type")
     det.add_argument("url", help="Endpoint URL to probe")
@@ -180,6 +193,8 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(_run_compare_logprobs(args))
     elif args.command == "compare-streaming":
         asyncio.run(_run_compare_streaming(args))
+    elif args.command == "healthcheck":
+        asyncio.run(_run_healthcheck(args))
     elif args.command == "detect":
         asyncio.run(_run_detect(args))
     elif args.command == "check-kv":
@@ -192,12 +207,41 @@ def main(argv: list[str] | None = None) -> None:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
 
+async def _preflight_healthcheck(
+    urls: list[str], api_key: str = "no-key", timeout: float = 10.0,
+) -> None:
+    """Run pre-flight health check; exit if any endpoint is unhealthy."""
+    from xpyd_acc.healthcheck import check_endpoints, format_healthcheck
+
+    results = await check_endpoints(urls, api_key=api_key, timeout=timeout)
+    print(format_healthcheck(results))
+    if not all(r.healthy for r in results):
+        print("\nAborting: unhealthy endpoint(s). Use --skip-healthcheck to bypass.")
+        sys.exit(1)
+    print()
+
+
+async def _run_healthcheck(args: argparse.Namespace) -> None:
+    """Run standalone endpoint health check."""
+    from xpyd_acc.healthcheck import check_endpoints, format_healthcheck
+
+    results = await check_endpoints(
+        args.url, api_key=args.api_key or "no-key", timeout=args.timeout,
+    )
+    print(format_healthcheck(results))
+    if not all(r.healthy for r in results):
+        sys.exit(1)
+
+
 async def _run_batch_compare(args: argparse.Namespace) -> None:
     """Run batch dataset comparison."""
     from xpyd_acc.batch_compare import export_csv, format_report, load_dataset, run_batch
 
     samples = load_dataset(args.dataset)
     print(f"Loaded {len(samples)} samples from {args.dataset}")
+
+    if not args.skip_healthcheck:
+        await _preflight_healthcheck([args.baseline, args.target], api_key=args.api_key)
 
     # Set up Rich progress bar unless disabled or non-TTY
     use_progress = not args.no_progress and sys.stderr.isatty()
@@ -359,6 +403,9 @@ async def _run_compare_streaming(args: argparse.Namespace) -> None:
 
     baseline = StreamingCollector(args.baseline, api_key=args.api_key, model=args.model)
     target = StreamingCollector(args.target, api_key=args.api_key, model=args.model)
+
+    if not args.skip_healthcheck:
+        await _preflight_healthcheck([args.baseline, args.target], api_key=args.api_key)
 
     print(f"Streaming from baseline: {args.baseline}")
     print(f"Streaming from target:   {args.target}")
