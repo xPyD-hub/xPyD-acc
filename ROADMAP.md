@@ -105,8 +105,15 @@
 - Columns: sample_id, prompt (truncated), baseline_output, target_output, match, divergence_index, logprob_gap
 - Useful for spreadsheet analysis and filtering
 
-## M16: Token Timing Analysis
+## M16: Token Timing Analysis ✅
 - Measure TTFT (time to first token) for both endpoints
 - Inter-token latency statistics (p50, p95, p99)
 - Timing comparison report between baseline and target
 - Integrated into `compare-streaming` output
+
+## M17: Prompt Template Support
+- Load prompt templates from YAML/TOML files
+- Variable substitution in prompts (e.g., `{question}`, `{context}`)
+- Built-in templates for common eval formats (GSM8K, MMLU, etc.)
+- CLI flag `--template <path>` for `batch-compare`
+- Template validation and error reporting
