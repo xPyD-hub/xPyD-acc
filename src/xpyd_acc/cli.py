@@ -12,6 +12,10 @@ def main(argv: list[str] | None = None) -> None:
         prog="xpyd-acc",
         description="PD disaggregation accuracy diagnostic tool",
     )
+    parser.add_argument(
+        "--config", default=None,
+        help="Path to TOML config file (auto-discovers xpyd-acc.toml in cwd if not set)",
+    )
     sub = parser.add_subparsers(dest="command")
 
     # compare-logprobs
@@ -88,6 +92,21 @@ def main(argv: list[str] | None = None) -> None:
     if not args.command:
         parser.print_help()
         return
+
+    # Load config file
+    from xpyd_acc.config import AppConfig, discover_config, load_config, merge_cli_args
+
+    config: AppConfig | None = None
+    if args.config:
+        config = load_config(args.config)
+    else:
+        config = discover_config()
+
+    if config is not None:
+        args_dict = vars(args)
+        merged = merge_cli_args(config, args_dict, args.command)
+        for key, val in merged.items():
+            setattr(args, key, val)
 
     if args.command == "batch-compare":
         asyncio.run(_run_batch_compare(args))
