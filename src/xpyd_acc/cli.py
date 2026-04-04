@@ -123,6 +123,10 @@ def main(argv: list[str] | None = None) -> None:
         "--skip-healthcheck", action="store_true", default=False,
         help="Skip pre-flight endpoint health check",
     )
+    cs.add_argument(
+        "--timing", action="store_true", default=False,
+        help="Enable token timing analysis (TTFT, inter-token latency)",
+    )
 
     hc = sub.add_parser("healthcheck", help="Check endpoint health")
     hc.add_argument("url", nargs="+", help="Endpoint URL(s) to check")
@@ -395,9 +399,12 @@ async def _run_diagnose(args: argparse.Namespace) -> None:
 
 async def _run_compare_streaming(args: argparse.Namespace) -> None:
     """Run streaming comparison between two endpoints."""
+    import time as time_mod
+
     from xpyd_acc.streaming import (
         StreamingCollector,
         StreamingComparator,
+        collect_stream,
         format_streaming_report,
     )
 
@@ -410,18 +417,46 @@ async def _run_compare_streaming(args: argparse.Namespace) -> None:
     print(f"Streaming from baseline: {args.baseline}")
     print(f"Streaming from target:   {args.target}")
 
-    comparator = StreamingComparator()
-    report = await comparator.compare(
-        baseline, target, args.prompt,
-        max_tokens=args.max_tokens,
-        timeout=args.timeout,
-    )
+    if args.timing:
+        # Collect with timing info
+        baseline_start = time_mod.monotonic()
+        baseline_tokens = await collect_stream(
+            baseline, args.prompt, max_tokens=args.max_tokens, timeout=args.timeout,
+        )
+        baseline_elapsed = time_mod.monotonic() - baseline_start
 
-    print()
-    print(format_streaming_report(report))
+        target_start = time_mod.monotonic()
+        target_tokens = await collect_stream(
+            target, args.prompt, max_tokens=args.max_tokens, timeout=args.timeout,
+        )
+        target_elapsed = time_mod.monotonic() - target_start
 
-    if not report.match:
-        sys.exit(1)
+        from xpyd_acc.streaming import compare_token_lists
+        from xpyd_acc.timing import compare_timing, compute_timing_stats, format_timing_report
+
+        stream_report = compare_token_lists(
+            baseline_tokens, target_tokens, elapsed=baseline_elapsed + target_elapsed,
+        )
+        print()
+        print(format_streaming_report(stream_report))
+
+        baseline_stats = compute_timing_stats(baseline_tokens, baseline_start)
+        target_stats = compute_timing_stats(target_tokens, target_start)
+        timing_report = compare_timing(baseline_stats, target_stats)
+        print()
+        print(format_timing_report(timing_report))
+    else:
+        comparator = StreamingComparator()
+        report = await comparator.compare(
+            baseline, target, args.prompt,
+            max_tokens=args.max_tokens,
+            timeout=args.timeout,
+        )
+        print()
+        print(format_streaming_report(report))
+
+        if not report.match:
+            sys.exit(1)
 
 
 async def _run_detect(args: argparse.Namespace) -> None:
