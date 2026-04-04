@@ -88,6 +88,7 @@
 - Rich progress bars during batch dataset runs
 - Per-sample progress tracking with ETA
 
-## M13: Streaming Output Comparison
+## M13: Streaming Output Comparison ✅
 - Compare SSE streaming responses token-by-token
 - Real-time divergence detection during streaming
+- CLI subcommand `compare-streaming` with `--baseline`, `--target`, `--prompt`

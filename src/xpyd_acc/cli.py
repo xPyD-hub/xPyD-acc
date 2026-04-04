@@ -103,6 +103,15 @@ def main(argv: list[str] | None = None) -> None:
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
     rp.add_argument("--output", default=None, help="Output HTML file path (default: report.html)")
 
+    cs = sub.add_parser("compare-streaming", help="Compare SSE streaming outputs")
+    cs.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    cs.add_argument("--target", required=True, help="Target endpoint URL")
+    cs.add_argument("--prompt", required=True, help="Prompt to send")
+    cs.add_argument("--model", default=None, help="Model name (default: default)")
+    cs.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
+    cs.add_argument("--api-key", default=None, help="API key for both endpoints")
+    cs.add_argument("--timeout", type=float, default=60.0, help="HTTP timeout in seconds")
+
     det = sub.add_parser("detect", help="Detect xPyD endpoint type")
     det.add_argument("url", help="Endpoint URL to probe")
     det.add_argument("--timeout", type=float, default=10.0, help="Request timeout in seconds")
@@ -165,6 +174,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_compare_output(args)
     elif args.command == "compare-logprobs":
         asyncio.run(_run_compare_logprobs(args))
+    elif args.command == "compare-streaming":
+        asyncio.run(_run_compare_streaming(args))
     elif args.command == "detect":
         asyncio.run(_run_detect(args))
     elif args.command == "check-kv":
@@ -293,6 +304,34 @@ async def _run_diagnose(args: argparse.Namespace) -> None:
         print(format_rich_report(report))
 
     if not report.overall_pass:
+        sys.exit(1)
+
+
+async def _run_compare_streaming(args: argparse.Namespace) -> None:
+    """Run streaming comparison between two endpoints."""
+    from xpyd_acc.streaming import (
+        StreamingCollector,
+        StreamingComparator,
+        format_streaming_report,
+    )
+
+    baseline = StreamingCollector(args.baseline, api_key=args.api_key, model=args.model)
+    target = StreamingCollector(args.target, api_key=args.api_key, model=args.model)
+
+    print(f"Streaming from baseline: {args.baseline}")
+    print(f"Streaming from target:   {args.target}")
+
+    comparator = StreamingComparator()
+    report = await comparator.compare(
+        baseline, target, args.prompt,
+        max_tokens=args.max_tokens,
+        timeout=args.timeout,
+    )
+
+    print()
+    print(format_streaming_report(report))
+
+    if not report.match:
         sys.exit(1)
 
 
