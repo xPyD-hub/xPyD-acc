@@ -108,8 +108,12 @@ def main(argv: list[str] | None = None) -> None:
     oc.add_argument("--target-file", help="Path to file with target output")
 
     bc = sub.add_parser("batch-compare", help="Run batch dataset comparison")
-    bc.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    bc.add_argument("--baseline", default=None, help="Baseline endpoint URL")
     bc.add_argument("--target", required=True, help="Target endpoint URL")
+    bc.add_argument(
+        "--snapshot", default=None, metavar="SNAPSHOT_JSON",
+        help="Use saved snapshot as baseline (mutually exclusive with --baseline)",
+    )
     bc.add_argument("--dataset", required=True, help="Path to JSONL dataset file")
     bc.add_argument("--model", default=None, help="Model name (default: default)")
     bc.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
@@ -275,6 +279,38 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("profiles", help="List available named profiles")
 
+    # snapshot capture
+    sc = sub.add_parser("snapshot", help="Capture baseline outputs as a snapshot")
+    sc.add_argument("action", choices=["capture"], help="Snapshot action")
+    sc.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    sc.add_argument("--dataset", required=True, help="Path to JSONL dataset file")
+    sc.add_argument("--output", required=True, help="Output snapshot JSON path")
+    sc.add_argument("--model", default=None, help="Model name (default: default)")
+    sc.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
+    sc.add_argument("--api-key", default=None, help="API key for endpoint")
+    sc.add_argument(
+        "--concurrency", type=int, default=None,
+        help="Max concurrent requests (default: 5)",
+    )
+    sc.add_argument("--retries", type=int, default=None, help="Max retry attempts (default: 3)")
+    sc.add_argument(
+        "--retry-delay", type=float, default=None,
+        help="Base retry delay in seconds (default: 1.0)",
+    )
+    sc.add_argument(
+        "--timeout", type=float, default=None,
+        help="HTTP request timeout in seconds (default: 120.0)",
+    )
+    sc.add_argument(
+        "--template", default=None,
+        help="Prompt template: built-in name or path to YAML/TOML file",
+    )
+    sc.add_argument(
+        "--no-progress", action="store_true", default=False,
+        help="Disable progress bar",
+    )
+    _add_sampling_args(sc)
+
     args = parser.parse_args(argv)
 
     # Setup logging from verbosity flags
@@ -385,6 +421,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_aggregate(args)
     elif args.command == "watch":
         _run_watch(args)
+    elif args.command == "snapshot":
+        asyncio.run(_run_snapshot(args))
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -439,6 +477,21 @@ async def _run_healthcheck(args: argparse.Namespace) -> None:
 
 async def _run_batch_compare(args: argparse.Namespace) -> None:
     """Run batch dataset comparison."""
+    # Validate --baseline vs --snapshot
+    snapshot_path = getattr(args, "snapshot", None)
+    has_baseline = args.baseline is not None
+    if snapshot_path and has_baseline:
+        print("Error: --baseline and --snapshot are mutually exclusive")
+        sys.exit(2)
+    if not snapshot_path and not has_baseline:
+        print("Error: one of --baseline or --snapshot is required")
+        sys.exit(2)
+
+    # Handle snapshot replay mode
+    if snapshot_path:
+        await _run_batch_with_snapshot(args)
+        return
+
     # Handle rerun mode
     if getattr(args, "rerun", None):
         await _run_rerun(args)
@@ -1061,3 +1114,260 @@ def _run_watch(args: argparse.Namespace) -> None:
 
     if args.alert_threshold and summary.consecutive_failures_at_end >= args.alert_threshold:
         sys.exit(1)
+
+
+async def _run_batch_with_snapshot(args: argparse.Namespace) -> None:
+    """Run batch comparison using a saved snapshot as baseline."""
+    from xpyd_acc.batch_compare import (
+        DatasetSample,
+        SampleResult,
+        _collect_output,
+        _find_first_divergence,
+        _tokenize,
+        classify_divergence,
+        compute_report,
+        export_csv,
+        export_markdown,
+        format_report,
+        load_dataset,
+    )
+    from xpyd_acc.output_compare import MatchConfig, normalized_match
+    from xpyd_acc.sampling import SamplingParams
+    from xpyd_acc.snapshot import load_snapshot, validate_snapshot_dataset
+
+    sampling = SamplingParams.from_args(args)
+    snapshot = load_snapshot(args.snapshot)
+    samples = load_dataset(args.dataset)
+    validate_snapshot_dataset(snapshot, samples)
+
+    # Apply template if specified
+    if args.template:
+        from xpyd_acc.templates import resolve_template
+
+        template = resolve_template(args.template)
+        print(f"Using template: {template.name}")
+        for sample in samples:
+            variables = {"prompt": sample.prompt, **sample.metadata}
+            sample.prompt = template.render(variables)
+
+    print(f"Using snapshot from {snapshot.captured_at} ({len(snapshot.samples)} samples)")
+    print(f"Target: {args.target}")
+
+    if not args.skip_healthcheck:
+        await _preflight_healthcheck([args.target], api_key=args.api_key)
+
+    snap_by_id = {s.sample_id: s for s in snapshot.samples}
+
+    match_config = MatchConfig(
+        normalize_whitespace=args.normalize_whitespace,
+        ignore_case=args.ignore_case,
+        numeric_tolerance=args.numeric_tolerance,
+    )
+    effective_match = match_config if (
+        match_config.normalize_whitespace
+        or match_config.ignore_case
+        or match_config.numeric_tolerance is not None
+    ) else None
+
+    import asyncio
+
+    semaphore = asyncio.Semaphore(args.concurrency or 5)
+    results: list[SampleResult] = []
+    completed = 0
+    total = len(samples)
+
+    use_progress = not args.no_progress and sys.stderr.isatty()
+    progress_ctx = None
+    task_id = None
+
+    if use_progress:
+        from rich.progress import (
+            BarColumn,
+            MofNCompleteColumn,
+            Progress,
+            TextColumn,
+            TimeElapsedColumn,
+            TimeRemainingColumn,
+        )
+
+        progress_ctx = Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("•"),
+            TimeElapsedColumn(),
+            TextColumn("•"),
+            TimeRemainingColumn(),
+        )
+
+    def on_progress_update(done: int, total: int) -> None:
+        if progress_ctx is not None and task_id is not None:
+            progress_ctx.update(task_id, completed=done)
+
+    async def process_one(sample: DatasetSample) -> SampleResult:
+        nonlocal completed
+        snap_sample = snap_by_id[sample.id]
+        baseline_text = snap_sample.output
+        baseline_lp = snap_sample.logprobs
+
+        async with semaphore:
+            target_text, target_lp = await _collect_output(
+                args.target, sample.prompt,
+                model=args.model or snapshot.model,
+                max_tokens=args.max_tokens or 64,
+                api_key=args.api_key or "no-key",
+                retries=args.retries or 3,
+                retry_delay=args.retry_delay or 1.0,
+                sampling_params=sampling,
+                timeout=args.timeout or 120.0,
+            )
+
+        b_tokens = _tokenize(baseline_text)
+        t_tokens = _tokenize(target_text)
+        exact = normalized_match(baseline_text, target_text, effective_match)
+        div_idx = _find_first_divergence(b_tokens, t_tokens)
+
+        b_lp_at_div = None
+        t_lp_at_div = None
+        gap = None
+
+        if div_idx is not None and div_idx < len(target_lp):
+            lp_entry = target_lp[div_idx]
+            t_lp_at_div = lp_entry.get("logprob")
+            top_lps = lp_entry.get("top_logprobs", [])
+            if len(top_lps) >= 2:
+                gap = abs(top_lps[0].get("logprob", 0) - top_lps[1].get("logprob", 0))
+        if div_idx is not None and div_idx < len(baseline_lp):
+            b_lp_at_div = baseline_lp[div_idx].get("logprob")
+
+        threshold = args.logprob_gap_threshold or 0.1
+        classification = "match" if exact else classify_divergence(gap, threshold=threshold)
+        ctx_len = len(_tokenize(sample.prompt))
+
+        completed += 1
+        on_progress_update(completed, total)
+
+        return SampleResult(
+            sample_id=sample.id,
+            prompt=sample.prompt,
+            baseline_output=baseline_text,
+            target_output=target_text,
+            exact_match=exact,
+            first_divergence_index=div_idx,
+            baseline_logprob_at_divergence=b_lp_at_div,
+            target_logprob_at_divergence=t_lp_at_div,
+            logprob_gap=gap,
+            classification=classification,
+            context_length=ctx_len,
+        )
+
+    if progress_ctx is not None:
+        progress_ctx.start()
+        task_id = progress_ctx.add_task("Comparing samples", total=total)
+
+    try:
+        tasks = [process_one(s) for s in samples]
+        results = list(await asyncio.gather(*tasks))
+    finally:
+        if progress_ctx is not None:
+            progress_ctx.stop()
+
+    report = compute_report(results, logprob_gap_threshold=args.logprob_gap_threshold or 0.1)
+
+    print()
+    print(format_report(report))
+
+    if args.csv:
+        export_csv(report, args.csv)
+        print(f"\nCSV exported to {args.csv}")
+
+    if args.json_path:
+        from pathlib import Path
+        Path(args.json_path).write_text(report.to_json())
+        print(f"\nJSON exported to {args.json_path}")
+
+    if args.markdown:
+        export_markdown(report, args.markdown)
+        print(f"\nMarkdown exported to {args.markdown}")
+
+    if report.divergent_samples > 0:
+        sys.exit(1)
+
+
+async def _run_snapshot(args: argparse.Namespace) -> None:
+    """Run snapshot capture."""
+    from xpyd_acc.batch_compare import load_dataset
+    from xpyd_acc.config import load_config
+    from xpyd_acc.sampling import SamplingParams
+    from xpyd_acc.snapshot import capture_snapshot, save_snapshot
+
+    cfg = load_config(args.config)
+    defaults = cfg.get("defaults", {}) if cfg else {}
+
+    sampling = SamplingParams.from_args(args)
+    samples = load_dataset(args.dataset)
+
+    # Apply template if specified
+    if args.template:
+        from xpyd_acc.templates import resolve_template
+
+        template = resolve_template(args.template)
+        print(f"Using template: {template.name}")
+        for sample in samples:
+            variables = {"prompt": sample.prompt, **sample.metadata}
+            sample.prompt = template.render(variables)
+
+    print(f"Capturing snapshot: {len(samples)} samples from {args.baseline}")
+
+    use_progress = not args.no_progress and sys.stderr.isatty()
+    progress_ctx = None
+    task_id = None
+
+    if use_progress:
+        from rich.progress import (
+            BarColumn,
+            MofNCompleteColumn,
+            Progress,
+            TextColumn,
+            TimeElapsedColumn,
+            TimeRemainingColumn,
+        )
+
+        progress_ctx = Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("•"),
+            TimeElapsedColumn(),
+            TextColumn("•"),
+            TimeRemainingColumn(),
+        )
+
+    def on_progress(completed: int, total: int) -> None:
+        if progress_ctx is not None and task_id is not None:
+            progress_ctx.update(task_id, completed=completed)
+
+    if progress_ctx is not None:
+        progress_ctx.start()
+        task_id = progress_ctx.add_task("Capturing snapshot", total=len(samples))
+
+    try:
+        snap = await capture_snapshot(
+            samples,
+            args.baseline,
+            model=args.model or defaults.get("model", "default"),
+            max_tokens=args.max_tokens or defaults.get("max_tokens", 64),
+            api_key=args.api_key or defaults.get("api_key", "no-key"),
+            concurrency=args.concurrency or defaults.get("concurrency", 5),
+            retries=args.retries or defaults.get("retries", 3),
+            retry_delay=args.retry_delay or defaults.get("retry_delay", 1.0),
+            sampling_params=sampling,
+            timeout=args.timeout or defaults.get("timeout", 120.0),
+            on_progress=on_progress if use_progress else None,
+        )
+    finally:
+        if progress_ctx is not None:
+            progress_ctx.stop()
+
+    save_snapshot(snap, args.output)
+    print(f"\nSnapshot saved to {args.output} ({len(snap.samples)} samples)")
