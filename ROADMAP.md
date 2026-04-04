@@ -197,3 +197,10 @@
 - `XPYD_ACC_TIMEOUT` environment variable support
 - TOML config `[defaults] timeout = 30.0`
 - Priority: CLI > env > config > default (120.0s)
+
+## M28: Logging & Verbosity Control ✅
+- `--verbose` (`-v`) for INFO, `-vv` for DEBUG level logging
+- `--quiet` (`-q`) for ERROR-only output (CI-friendly)
+- `-v` and `-q` are mutually exclusive
+- `log.py` module with `setup_logging()` and `get_logger()`
+- Logging integrated into retry, healthcheck, batch_compare, streaming, config
