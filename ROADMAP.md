@@ -130,3 +130,10 @@
 - Summary table, classification breakdown, divergence stats
 - Context length analysis table
 - Top divergent samples with details
+
+## M20: Dry Run Mode for Batch Comparison
+- `batch-compare --dry-run` validates everything without sending API requests
+- Checks: dataset loads correctly, template renders, endpoints reachable (via healthcheck)
+- Reports: number of samples, estimated tokens, resolved config values
+- Exits 0 if all validations pass, non-zero with actionable error messages
+- Useful for CI pipelines and pre-flight validation before long batch runs
