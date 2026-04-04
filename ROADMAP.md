@@ -57,7 +57,7 @@
 - Work with xPyD-sim for controlled testing (tool logic only, not real accuracy)
 - Auto-detect endpoint type (aggregated vs disaggregated)
 
-## M8: Reporting & Visualization ⬜
+## M8: Reporting & Visualization ✅
 - HTML report with:
   - Summary dashboard (pass rate per dataset)
   - Per-sample divergence detail (click to expand)
