@@ -269,7 +269,7 @@
 - `--output <path>` flag to write directly to a file
 - Tests for completion script generation (non-empty output, valid syntax markers)
 
-## M36: Response Caching for Batch Comparison
+## M36: Response Caching for Batch Comparison ✅
 - Content-addressable cache: hash(endpoint_url + model + prompt + sampling_params) → cached response
 - `--cache-dir <path>` flag (default: `.xpyd-acc-cache/`)
 - `--no-cache` flag to bypass cache entirely
