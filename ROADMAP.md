@@ -118,7 +118,7 @@
 - CLI flag `--template <path>` for `batch-compare`
 - Template validation and error reporting
 
-## M18: Environment Variable Support ⬜
+## M18: Environment Variable Support ✅
 - `XPYD_ACC_API_KEY`, `XPYD_ACC_BASELINE_URL`, `XPYD_ACC_TARGET_URL`, `XPYD_ACC_MODEL`
 - Priority chain: CLI flags > env vars > config file > defaults
 - Avoids API keys in shell history
