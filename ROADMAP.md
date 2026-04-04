@@ -171,3 +171,12 @@
 - `temperature=0` + `seed` enables deterministic/reproducible comparisons
 - Environment variables: `XPYD_ACC_TEMPERATURE`, `XPYD_ACC_TOP_P`, `XPYD_ACC_SEED`
 - All flags default to None (server decides) to preserve backward compatibility
+
+## M25: Named Profiles (Presets)
+- Named profiles in `[profiles.<name>]` TOML sections
+- Each profile can override: model, temperature, top_p, seed, max_tokens, retries, retry_delay, matching settings
+- CLI flag `--profile <name>` to activate a profile
+- Profile values sit between config defaults and CLI flags in priority chain
+- `xpyd-acc profiles` subcommand to list available profiles
+- Built-in profiles: `greedy` (temperature=0, seed=42), `stochastic` (temperature=0.7)
+- Reduces repetitive CLI flags for common testing scenarios
