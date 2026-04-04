@@ -189,3 +189,11 @@
 - Export aggregated report as JSON
 - Rich terminal output with per-sample status
 - Useful for distinguishing real bugs from non-deterministic behavior across multiple runs
+
+## M27: Configurable HTTP Timeout for Batch Comparison ✅
+- `_collect_output()` accepts `timeout` parameter (default 120.0s)
+- `run_batch()` forwards `timeout` to HTTP requests
+- `batch-compare --timeout <seconds>` CLI flag
+- `XPYD_ACC_TIMEOUT` environment variable support
+- TOML config `[defaults] timeout = 30.0`
+- Priority: CLI > env > config > default (120.0s)
