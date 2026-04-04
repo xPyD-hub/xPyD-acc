@@ -52,7 +52,7 @@
 - Dataset runner: send all prompts to both endpoints, collect results, auto-compare
 - Export: CSV of all samples with pass/fail/divergence info for manual review
 
-## M7: Integration with xPyD Ecosystem ⬜
+## M7: Integration with xPyD Ecosystem ✅
 - Work with xPyD-proxy endpoints directly
 - Work with xPyD-sim for controlled testing (tool logic only, not real accuracy)
 - Auto-detect endpoint type (aggregated vs disaggregated)
