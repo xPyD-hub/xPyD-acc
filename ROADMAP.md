@@ -320,3 +320,15 @@
 - JSONL remains default for unknown extensions
 - Clear error messages for missing `prompt` column/field, non-array JSON, non-object items
 - 11 tests covering all formats, error cases, and fallback behavior
+
+## M41: Webhook Notifications for Divergence Alerts
+- `--webhook <url>` flag for `batch-compare`
+- POST JSON payload: event, divergence_detected, total_samples, divergent_samples, divergence_rate
+- `--webhook-header 'Key: Value'` for custom headers (repeatable)
+- `--webhook-always` sends on every run, not just on divergence
+- TOML config: `[notifications] webhook_url`, `webhook_headers`, `webhook_always`
+- Environment variable: `XPYD_ACC_WEBHOOK_URL`
+- Priority chain: CLI > env > TOML
+- `notify.py` module with `send_webhook()`, `resolve_webhook_config()`
+- Reuses existing retry logic for delivery reliability
+- Tests for webhook send, skip, retry failure, header parsing, config resolution
