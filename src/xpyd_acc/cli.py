@@ -202,6 +202,18 @@ def main(argv: list[str] | None = None) -> None:
         "--cache-ttl", type=float, default=None,
         help="Cache entry TTL in seconds (default: 3600)",
     )
+    bc.add_argument(
+        "--webhook", default=None, metavar="URL",
+        help="Webhook URL to POST divergence alerts to",
+    )
+    bc.add_argument(
+        "--webhook-header", action="append", default=None, dest="webhook_headers",
+        help="Custom webhook header as 'Key: Value' (repeatable)",
+    )
+    bc.add_argument(
+        "--webhook-always", action="store_true", default=False,
+        help="Send webhook on every run, not just on divergence",
+    )
 
     # Cache management subcommand
     cache_cmd = sub.add_parser("cache", help="Manage response cache")
@@ -894,6 +906,9 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             export_markdown(report, args.markdown)
             print(f"\nMarkdown exported to {args.markdown}")
 
+        # Send webhook notification if configured
+        await _maybe_send_webhook(args, report)
+
         # Determine fail threshold: CLI > env > config > None
         fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
         if fail_threshold is not None:
@@ -910,6 +925,39 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 )
         elif report.divergent_samples > 0:
             sys.exit(1)
+
+
+async def _maybe_send_webhook(
+    args: argparse.Namespace,
+    report: object,
+) -> None:
+    """Send webhook notification if configured."""
+    import os
+
+    from xpyd_acc.notify import WebhookPayload, resolve_webhook_config, send_webhook
+
+    config = resolve_webhook_config(
+        cli_url=getattr(args, "webhook", None),
+        cli_headers=getattr(args, "webhook_headers", None),
+        cli_always=getattr(args, "webhook_always", False),
+        env_url=os.environ.get("XPYD_ACC_WEBHOOK_URL"),
+        toml_config=getattr(args, "_config", None),
+    )
+    if config is None:
+        return
+
+    total = getattr(report, "total_samples", 0)
+    divergent = getattr(report, "divergent_samples", 0)
+    rate = getattr(report, "divergence_rate", 0.0)
+
+    payload = WebhookPayload(
+        event="batch_complete",
+        divergence_detected=divergent > 0,
+        total_samples=total,
+        divergent_samples=divergent,
+        divergence_rate=rate,
+    )
+    await send_webhook(config, payload)
 
 
 def _resolve_fail_threshold(
