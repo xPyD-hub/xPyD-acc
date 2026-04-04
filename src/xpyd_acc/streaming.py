@@ -6,7 +6,7 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 import httpx
 
@@ -140,6 +140,7 @@ class StreamingComparator:
         *,
         timeout: float = 60.0,
         on_token: None = None,
+        match_config: Any | None = None,
     ) -> StreamingComparisonReport:
         """Run both streams in parallel and compare tokens as they arrive.
 
@@ -163,22 +164,25 @@ class StreamingComparator:
         )
 
         elapsed = time.monotonic() - start
-        return compare_token_lists(baseline_tokens, target_tokens, elapsed)
+        return compare_token_lists(baseline_tokens, target_tokens, elapsed, match_config)
 
 
 def compare_token_lists(
     baseline_tokens: list[StreamToken],
     target_tokens: list[StreamToken],
     elapsed: float = 0.0,
+    match_config: Any | None = None,
 ) -> StreamingComparisonReport:
     """Compare two lists of StreamTokens and find first divergence."""
+    from xpyd_acc.output_compare import normalized_match
+
     min_len = min(len(baseline_tokens), len(target_tokens))
     divergence: StreamingDivergence | None = None
 
     for i in range(min_len):
         bt = baseline_tokens[i]
         tt = target_tokens[i]
-        if bt.token != tt.token:
+        if not normalized_match(bt.token, tt.token, match_config):
             divergence = StreamingDivergence(
                 token_index=i,
                 expected_token=bt.token,

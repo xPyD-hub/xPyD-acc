@@ -115,6 +115,18 @@ def main(argv: list[str] | None = None) -> None:
         "--dry-run", action="store_true", default=False,
         help="Validate setup without sending API requests",
     )
+    bc.add_argument(
+        "--normalize-whitespace", action="store_true", default=False,
+        help="Collapse and strip whitespace before comparison",
+    )
+    bc.add_argument(
+        "--ignore-case", action="store_true", default=False,
+        help="Case-insensitive text matching",
+    )
+    bc.add_argument(
+        "--numeric-tolerance", type=float, default=None,
+        help="Treat numbers within tolerance as equal",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -135,6 +147,18 @@ def main(argv: list[str] | None = None) -> None:
     cs.add_argument(
         "--timing", action="store_true", default=False,
         help="Enable token timing analysis (TTFT, inter-token latency)",
+    )
+    cs.add_argument(
+        "--normalize-whitespace", action="store_true", default=False,
+        help="Collapse and strip whitespace before comparison",
+    )
+    cs.add_argument(
+        "--ignore-case", action="store_true", default=False,
+        help="Case-insensitive text matching",
+    )
+    cs.add_argument(
+        "--numeric-tolerance", type=float, default=None,
+        help="Treat numbers within tolerance as equal",
     )
 
     hc = sub.add_parser("healthcheck", help="Check endpoint health")
@@ -356,6 +380,20 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         task_id = progress_ctx.add_task("Comparing samples", total=len(samples))
 
     try:
+        from xpyd_acc.output_compare import MatchConfig
+
+        match_config = MatchConfig(
+            normalize_whitespace=args.normalize_whitespace,
+            ignore_case=args.ignore_case,
+            numeric_tolerance=args.numeric_tolerance,
+        )
+        # Only pass config if any tolerance is enabled
+        effective_match = match_config if (
+            match_config.normalize_whitespace
+            or match_config.ignore_case
+            or match_config.numeric_tolerance is not None
+        ) else None
+
         report = await run_batch(
             samples,
             args.baseline,
@@ -368,6 +406,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             retries=args.retries,
             retry_delay=args.retry_delay,
             on_progress=on_progress if use_progress else None,
+            match_config=effective_match,
         )
     finally:
         if progress_ctx is not None:
@@ -497,6 +536,19 @@ async def _run_compare_streaming(args: argparse.Namespace) -> None:
     print(f"Streaming from target:   {args.target}")
 
     if args.timing:
+        from xpyd_acc.output_compare import MatchConfig as _MC
+
+        _stream_match = _MC(
+            normalize_whitespace=args.normalize_whitespace,
+            ignore_case=args.ignore_case,
+            numeric_tolerance=args.numeric_tolerance,
+        )
+        _eff_match = _stream_match if (
+            _stream_match.normalize_whitespace
+            or _stream_match.ignore_case
+            or _stream_match.numeric_tolerance is not None
+        ) else None
+
         # Collect with timing info
         baseline_start = time_mod.monotonic()
         baseline_tokens = await collect_stream(
@@ -514,7 +566,9 @@ async def _run_compare_streaming(args: argparse.Namespace) -> None:
         from xpyd_acc.timing import compare_timing, compute_timing_stats, format_timing_report
 
         stream_report = compare_token_lists(
-            baseline_tokens, target_tokens, elapsed=baseline_elapsed + target_elapsed,
+            baseline_tokens, target_tokens,
+            elapsed=baseline_elapsed + target_elapsed,
+            match_config=_eff_match,
         )
         print()
         print(format_streaming_report(stream_report))
@@ -525,11 +579,25 @@ async def _run_compare_streaming(args: argparse.Namespace) -> None:
         print()
         print(format_timing_report(timing_report))
     else:
+        from xpyd_acc.output_compare import MatchConfig as _MC2
+
+        _stream_match2 = _MC2(
+            normalize_whitespace=args.normalize_whitespace,
+            ignore_case=args.ignore_case,
+            numeric_tolerance=args.numeric_tolerance,
+        )
+        _eff_match2 = _stream_match2 if (
+            _stream_match2.normalize_whitespace
+            or _stream_match2.ignore_case
+            or _stream_match2.numeric_tolerance is not None
+        ) else None
+
         comparator = StreamingComparator()
         report = await comparator.compare(
             baseline, target, args.prompt,
             max_tokens=args.max_tokens,
             timeout=args.timeout,
+            match_config=_eff_match2,
         )
         print()
         print(format_streaming_report(report))

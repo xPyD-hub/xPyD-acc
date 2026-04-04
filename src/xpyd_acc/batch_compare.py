@@ -233,6 +233,7 @@ async def run_batch(
     retries: int = 3,
     retry_delay: float = 1.0,
     on_progress: Callable[[int, int], None] | None = None,
+    match_config: Any | None = None,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -259,7 +260,10 @@ async def run_batch(
 
         b_tokens = _tokenize(baseline_text)
         t_tokens = _tokenize(target_text)
-        exact = baseline_text == target_text
+
+        from xpyd_acc.output_compare import normalized_match
+
+        exact = normalized_match(baseline_text, target_text, match_config)
         div_idx = _find_first_divergence(b_tokens, t_tokens)
 
         b_lp_at_div: float | None = None

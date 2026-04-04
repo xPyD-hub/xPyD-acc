@@ -131,17 +131,27 @@
 - Context length analysis table
 - Top divergent samples with details
 
-## M20: Dry Run Mode for Batch Comparison
+## M20: Dry Run Mode for Batch Comparison ✅
 - `batch-compare --dry-run` validates everything without sending API requests
 - Checks: dataset loads correctly, template renders, endpoints reachable (via healthcheck)
 - Reports: number of samples, estimated tokens, resolved config values
 - Exits 0 if all validations pass, non-zero with actionable error messages
 - Useful for CI pipelines and pre-flight validation before long batch runs
 
-## M21: Regression Detection
+## M21: Regression Detection ✅
 - `xpyd-acc regression --baseline <old.json> --current <new.json>` compares two batch runs
 - Detects regressions (previously matched, now diverges), fixes, and persistent issues
 - Summary: regression count, fix count, net change, divergence rate comparison
 - Exit 0 if no regressions, exit 1 if regressions found (CI-friendly)
 - JSON export for regression reports
 - Rich terminal output with clear pass/fail indicators
+
+## M22: Tolerance-Based Matching for Batch Comparison
+- `--normalize-whitespace` flag: collapse/strip whitespace before comparison
+- `--ignore-case` flag: case-insensitive text matching
+- `--numeric-tolerance <float>` flag: treat numbers within tolerance as equal
+- New `MatchConfig` dataclass in `output_compare.py` for match settings
+- `normalized_match()` function applying configured tolerances
+- Integrated into `batch-compare` and `compare-streaming` commands
+- TOML config section `[matching]` for default tolerance settings
+- Tests for all tolerance modes and combinations
