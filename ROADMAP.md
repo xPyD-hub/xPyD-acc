@@ -216,7 +216,7 @@
 - Ctrl+C gracefully stops and prints summary
 - Useful for monitoring PD accuracy during long-running deployments
 
-## M30: Snapshot Baseline Capture & Replay ⬜
+## M30: Snapshot Baseline Capture & Replay ✅
 - `xpyd-acc snapshot capture --baseline <url> --dataset <path> --output <snap.json>` — capture baseline once
 - `batch-compare --snapshot <snap.json> --target <url>` — replay without baseline endpoint
 - Snapshot stores: timestamp, endpoint URL, model, per-sample outputs + logprobs
