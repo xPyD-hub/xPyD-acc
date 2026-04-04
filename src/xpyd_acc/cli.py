@@ -294,6 +294,14 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("profiles", help="List available named profiles")
 
+    # shell completion
+    comp = sub.add_parser("completion", help="Generate shell completion script")
+    comp.add_argument("shell", choices=["bash", "zsh", "fish"], help="Target shell")
+    comp.add_argument(
+        "--output", default=None,
+        help="Write completion script to file instead of stdout",
+    )
+
     # snapshot capture
     sc = sub.add_parser("snapshot", help="Capture baseline outputs as a snapshot")
     sc.add_argument("action", choices=["capture"], help="Snapshot action")
@@ -366,6 +374,11 @@ def main(argv: list[str] | None = None) -> None:
     # Handle 'profiles' subcommand
     if args.command == "profiles":
         _run_profiles(config)
+        return
+
+    # Handle 'completion' subcommand
+    if args.command == "completion":
+        _run_completion(args, parser)
         return
 
     # Apply environment variable defaults (priority: CLI > env > config > defaults)
@@ -457,6 +470,22 @@ async def _preflight_healthcheck(
         print("\nAborting: unhealthy endpoint(s). Use --skip-healthcheck to bypass.")
         sys.exit(1)
     print()
+
+
+def _run_completion(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Generate and output a shell completion script."""
+    from xpyd_acc.completion import GENERATORS
+
+    generator = GENERATORS[args.shell]
+    script = generator(parser)
+
+    if args.output:
+        from pathlib import Path
+
+        Path(args.output).write_text(script)
+        print(f"Completion script written to {args.output}")
+    else:
+        print(script, end="")
 
 
 def _run_profiles(config: object) -> None:
