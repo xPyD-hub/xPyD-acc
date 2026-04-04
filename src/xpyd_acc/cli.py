@@ -49,6 +49,20 @@ def main(argv: list[str] | None = None) -> None:
     oc.add_argument("--target-text", help="Target output text (inline)")
     oc.add_argument("--target-file", help="Path to file with target output")
 
+    bc = sub.add_parser("batch-compare", help="Run batch dataset comparison")
+    bc.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    bc.add_argument("--target", required=True, help="Target endpoint URL")
+    bc.add_argument("--dataset", required=True, help="Path to JSONL dataset file")
+    bc.add_argument("--model", default="default", help="Model name")
+    bc.add_argument("--max-tokens", type=int, default=64, help="Max tokens to generate")
+    bc.add_argument("--api-key", default="no-key", help="API key for endpoints")
+    bc.add_argument("--concurrency", type=int, default=5, help="Max concurrent requests")
+    bc.add_argument(
+        "--logprob-gap-threshold", type=float, default=0.1,
+        help="Logprob gap threshold for bug vs uncertainty (default: 0.1)",
+    )
+    bc.add_argument("--csv", default=None, help="Path to export CSV results")
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -67,7 +81,9 @@ def main(argv: list[str] | None = None) -> None:
         parser.print_help()
         return
 
-    if args.command == "compare-output":
+    if args.command == "batch-compare":
+        asyncio.run(_run_batch_compare(args))
+    elif args.command == "compare-output":
         _run_compare_output(args)
     elif args.command == "compare-logprobs":
         asyncio.run(_run_compare_logprobs(args))
@@ -77,6 +93,35 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(_run_diagnose(args))
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
+
+
+async def _run_batch_compare(args: argparse.Namespace) -> None:
+    """Run batch dataset comparison."""
+    from xpyd_acc.batch_compare import export_csv, format_report, load_dataset, run_batch
+
+    samples = load_dataset(args.dataset)
+    print(f"Loaded {len(samples)} samples from {args.dataset}")
+
+    report = await run_batch(
+        samples,
+        args.baseline,
+        args.target,
+        model=args.model,
+        max_tokens=args.max_tokens,
+        api_key=args.api_key,
+        logprob_gap_threshold=args.logprob_gap_threshold,
+        concurrency=args.concurrency,
+    )
+
+    print()
+    print(format_report(report))
+
+    if args.csv:
+        export_csv(report, args.csv)
+        print(f"\nCSV exported to {args.csv}")
+
+    if report.divergent_samples > 0:
+        sys.exit(1)
 
 
 def _run_compare_output(args: argparse.Namespace) -> None:

@@ -1,0 +1,364 @@
+"""Batch dataset comparison: run prompts on two endpoints, find divergences."""
+
+from __future__ import annotations
+
+import asyncio
+import csv
+import io
+import json
+import statistics
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+
+@dataclass
+class DatasetSample:
+    """A single sample from a dataset."""
+
+    id: str
+    prompt: str
+    expected: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class SampleResult:
+    """Result of comparing one sample across two endpoints."""
+
+    sample_id: str
+    prompt: str
+    baseline_output: str
+    target_output: str
+    exact_match: bool
+    first_divergence_index: int | None  # token index of first divergence
+    baseline_logprob_at_divergence: float | None
+    target_logprob_at_divergence: float | None
+    logprob_gap: float | None  # top1 - top2 gap at divergence point
+    classification: str  # "match", "likely_bug", "likely_uncertainty", "unknown"
+    context_length: int  # number of prompt tokens (approximated)
+
+    def is_divergent(self) -> bool:
+        """Whether this sample diverged."""
+        return not self.exact_match
+
+
+@dataclass
+class BatchReport:
+    """Statistical report from a batch comparison run."""
+
+    total_samples: int
+    divergent_samples: int
+    match_samples: int
+    divergence_rate: float
+    results: list[SampleResult]
+    # Stats on divergent samples only
+    divergence_index_mean: float | None = None
+    divergence_index_median: float | None = None
+    logprob_gap_mean: float | None = None
+    logprob_gap_median: float | None = None
+    likely_bugs: int = 0
+    likely_uncertainty: int = 0
+    unknown_classification: int = 0
+    # Divergence by context length buckets
+    divergence_by_context_length: dict[str, dict[str, int]] = field(default_factory=dict)
+
+
+def load_dataset(path: str | Path) -> list[DatasetSample]:
+    """Load dataset from JSONL file.
+
+    Each line should be a JSON object with at least a "prompt" field.
+    Optional fields: "id", "expected", and any other metadata.
+    """
+    path = Path(path)
+    samples: list[DatasetSample] = []
+    with path.open() as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            obj = json.loads(line)
+            if "prompt" not in obj:
+                msg = f"Line {i + 1}: missing 'prompt' field"
+                raise ValueError(msg)
+            sample_id = str(obj.get("id", i))
+            prompt = obj["prompt"]
+            expected = obj.get("expected")
+            metadata = {k: v for k, v in obj.items() if k not in ("id", "prompt", "expected")}
+            samples.append(DatasetSample(
+                id=sample_id,
+                prompt=prompt,
+                expected=expected,
+                metadata=metadata,
+            ))
+    return samples
+
+
+def _tokenize(text: str) -> list[str]:
+    """Simple whitespace tokenizer."""
+    return text.split()
+
+
+def _find_first_divergence(baseline_tokens: list[str], target_tokens: list[str]) -> int | None:
+    """Find index of first differing token. None if identical."""
+    for i, (b, t) in enumerate(zip(baseline_tokens, target_tokens)):
+        if b != t:
+            return i
+    if len(baseline_tokens) != len(target_tokens):
+        return min(len(baseline_tokens), len(target_tokens))
+    return None
+
+
+def classify_divergence(
+    logprob_gap: float | None,
+    *,
+    threshold: float = 0.1,
+) -> str:
+    """Classify divergence as likely bug or uncertainty.
+
+    If the gap between top-1 and top-2 logprob at the divergence point is large,
+    it's likely a real bug. If small, it's likely normal model uncertainty.
+    """
+    if logprob_gap is None:
+        return "unknown"
+    if logprob_gap >= threshold:
+        return "likely_bug"
+    return "likely_uncertainty"
+
+
+def _context_length_bucket(length: int) -> str:
+    """Bucket context length for grouping."""
+    if length <= 50:
+        return "0-50"
+    if length <= 200:
+        return "51-200"
+    if length <= 500:
+        return "201-500"
+    if length <= 1000:
+        return "501-1000"
+    return "1000+"
+
+
+async def _collect_output(
+    url: str,
+    prompt: str,
+    *,
+    model: str = "default",
+    max_tokens: int = 64,
+    api_key: str = "no-key",
+) -> tuple[str, list[dict[str, Any]]]:
+    """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list).
+
+    Returns a tuple of (generated_text, logprobs_per_token).
+    Each logprob entry has: {"token": str, "logprob": float, "top_logprobs": [...]}.
+    """
+    import httpx
+
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "logprobs": True,
+        "top_logprobs": 5,
+    }
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(f"{url}/v1/chat/completions", json=payload, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+
+    choice = data["choices"][0]
+    text = choice["message"]["content"]
+    logprobs_content = choice.get("logprobs", {}).get("content", [])
+    return text, logprobs_content
+
+
+async def run_batch(
+    samples: list[DatasetSample],
+    baseline_url: str,
+    target_url: str,
+    *,
+    model: str = "default",
+    max_tokens: int = 64,
+    api_key: str = "no-key",
+    logprob_gap_threshold: float = 0.1,
+    concurrency: int = 5,
+) -> BatchReport:
+    """Run all samples against both endpoints and produce a report."""
+    semaphore = asyncio.Semaphore(concurrency)
+    results: list[SampleResult] = []
+
+    async def process_sample(sample: DatasetSample) -> SampleResult:
+        async with semaphore:
+            baseline_text, baseline_lp = await _collect_output(
+                baseline_url, sample.prompt, model=model,
+                max_tokens=max_tokens, api_key=api_key,
+            )
+            target_text, target_lp = await _collect_output(
+                target_url, sample.prompt, model=model,
+                max_tokens=max_tokens, api_key=api_key,
+            )
+
+        b_tokens = _tokenize(baseline_text)
+        t_tokens = _tokenize(target_text)
+        exact = baseline_text == target_text
+        div_idx = _find_first_divergence(b_tokens, t_tokens)
+
+        b_lp_at_div: float | None = None
+        t_lp_at_div: float | None = None
+        gap: float | None = None
+
+        if div_idx is not None and div_idx < len(target_lp):
+            lp_entry = target_lp[div_idx]
+            t_lp_at_div = lp_entry.get("logprob")
+            top_lps = lp_entry.get("top_logprobs", [])
+            if len(top_lps) >= 2:
+                gap = abs(top_lps[0].get("logprob", 0) - top_lps[1].get("logprob", 0))
+        if div_idx is not None and div_idx < len(baseline_lp):
+            b_lp_at_div = baseline_lp[div_idx].get("logprob")
+
+        classification = "match" if exact else classify_divergence(
+            gap, threshold=logprob_gap_threshold,
+        )
+        ctx_len = len(_tokenize(sample.prompt))
+
+        return SampleResult(
+            sample_id=sample.id,
+            prompt=sample.prompt,
+            baseline_output=baseline_text,
+            target_output=target_text,
+            exact_match=exact,
+            first_divergence_index=div_idx,
+            baseline_logprob_at_divergence=b_lp_at_div,
+            target_logprob_at_divergence=t_lp_at_div,
+            logprob_gap=gap,
+            classification=classification,
+            context_length=ctx_len,
+        )
+
+    tasks = [process_sample(s) for s in samples]
+    results = await asyncio.gather(*tasks)
+    results = list(results)
+
+    return compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
+
+
+def compute_report(
+    results: list[SampleResult],
+    *,
+    logprob_gap_threshold: float = 0.1,
+) -> BatchReport:
+    """Compute statistical report from sample results."""
+    total = len(results)
+    divergent = [r for r in results if r.is_divergent()]
+    div_count = len(divergent)
+    match_count = total - div_count
+    rate = div_count / total if total > 0 else 0.0
+
+    div_indices = [
+        r.first_divergence_index for r in divergent
+        if r.first_divergence_index is not None
+    ]
+    gaps = [r.logprob_gap for r in divergent if r.logprob_gap is not None]
+
+    report = BatchReport(
+        total_samples=total,
+        divergent_samples=div_count,
+        match_samples=match_count,
+        divergence_rate=rate,
+        results=results,
+    )
+
+    if div_indices:
+        report.divergence_index_mean = statistics.mean(div_indices)
+        report.divergence_index_median = statistics.median(div_indices)
+    if gaps:
+        report.logprob_gap_mean = statistics.mean(gaps)
+        report.logprob_gap_median = statistics.median(gaps)
+
+    report.likely_bugs = sum(1 for r in divergent if r.classification == "likely_bug")
+    report.likely_uncertainty = sum(
+        1 for r in divergent if r.classification == "likely_uncertainty"
+    )
+    report.unknown_classification = sum(1 for r in divergent if r.classification == "unknown")
+
+    # Context length buckets
+    buckets: dict[str, dict[str, int]] = {}
+    for r in results:
+        bucket = _context_length_bucket(r.context_length)
+        if bucket not in buckets:
+            buckets[bucket] = {"total": 0, "divergent": 0}
+        buckets[bucket]["total"] += 1
+        if r.is_divergent():
+            buckets[bucket]["divergent"] += 1
+    report.divergence_by_context_length = buckets
+
+    return report
+
+
+def export_csv(report: BatchReport, path: str | Path | None = None) -> str:
+    """Export results as CSV. Returns CSV string. If path given, also writes to file."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "sample_id", "exact_match", "first_divergence_index",
+        "logprob_gap", "classification", "context_length",
+        "baseline_output", "target_output",
+    ])
+    for r in report.results:
+        writer.writerow([
+            r.sample_id,
+            r.exact_match,
+            r.first_divergence_index if r.first_divergence_index is not None else "",
+            f"{r.logprob_gap:.6f}" if r.logprob_gap is not None else "",
+            r.classification,
+            r.context_length,
+            r.baseline_output,
+            r.target_output,
+        ])
+    csv_str = output.getvalue()
+    if path is not None:
+        Path(path).write_text(csv_str)
+    return csv_str
+
+
+def format_report(report: BatchReport) -> str:
+    """Format batch report as human-readable text."""
+    lines = [
+        "=== Batch Comparison Report ===",
+        f"Total samples: {report.total_samples}",
+        f"Matches: {report.match_samples}",
+        f"Divergent: {report.divergent_samples} ({report.divergence_rate:.1%})",
+        "",
+    ]
+
+    if report.divergent_samples > 0:
+        lines.append("--- Classification ---")
+        lines.append(f"  Likely bugs:        {report.likely_bugs}")
+        lines.append(f"  Likely uncertainty:  {report.likely_uncertainty}")
+        lines.append(f"  Unknown:            {report.unknown_classification}")
+        lines.append("")
+
+        if report.divergence_index_mean is not None:
+            lines.append("--- Divergence Point ---")
+            lines.append(f"  Mean token index:   {report.divergence_index_mean:.1f}")
+            lines.append(f"  Median token index: {report.divergence_index_median:.1f}")
+            lines.append("")
+
+        if report.logprob_gap_mean is not None:
+            lines.append("--- Logprob Gap at Divergence ---")
+            lines.append(f"  Mean:   {report.logprob_gap_mean:.6f}")
+            lines.append(f"  Median: {report.logprob_gap_median:.6f}")
+            lines.append("")
+
+        if report.divergence_by_context_length:
+            lines.append("--- Divergence by Context Length ---")
+            for bucket in sorted(report.divergence_by_context_length.keys()):
+                stats = report.divergence_by_context_length[bucket]
+                rate = stats["divergent"] / stats["total"] if stats["total"] > 0 else 0
+                lines.append(
+                    f"  {bucket:>10s}: {stats['divergent']}/{stats['total']} ({rate:.1%})"
+                )
+
+    return "\n".join(lines)
