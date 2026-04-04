@@ -303,3 +303,12 @@
 - Sampling params support (--temperature, --top-p, --seed, --profile)
 - Graceful error handling (failed requests counted separately)
 - Tests for stats computation, JSON export, error handling
+
+## M39: Configuration Validation & Init Command ✅
+- `xpyd-acc init` generates a well-commented starter `xpyd-acc.toml`
+- `--output <path>` and `--force` flags for custom path and overwrite
+- `xpyd-acc config validate [path]` checks TOML for unknown sections/keys and type mismatches
+- Warnings for unknown keys, errors for type mismatches
+- Exit 0 if valid, exit 1 if errors found
+- Profiles section treated as free-form (no validation)
+- 20 tests covering init, overwrite protection, validation pass/fail, CLI integration
