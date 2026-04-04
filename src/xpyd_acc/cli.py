@@ -360,6 +360,23 @@ def main(argv: list[str] | None = None) -> None:
     )
     _add_sampling_args(sc)
 
+    # history
+    hist = sub.add_parser("history", help="Result history & trend tracking")
+    hist_sub = hist.add_subparsers(dest="history_action")
+    hist_save = hist_sub.add_parser("save", help="Save a batch report to history")
+    hist_save.add_argument("--report", required=True, help="Path to batch report JSON")
+    hist_save.add_argument("--tag", default="", help="Label for this run")
+    hist_save.add_argument("--history-dir", default=None, help="History directory")
+    hist_list = hist_sub.add_parser("list", help="List saved history entries")
+    hist_list.add_argument("--history-dir", default=None, help="History directory")
+    hist_trend = hist_sub.add_parser("trend", help="Show divergence rate trend")
+    hist_trend.add_argument("--last", type=int, default=None, help="Show last N entries")
+    hist_trend.add_argument(
+        "--fail-on-regression", action="store_true", default=False,
+        help="Exit 1 if divergence rate increased in the latest run",
+    )
+    hist_trend.add_argument("--history-dir", default=None, help="History directory")
+
     args = parser.parse_args(argv)
 
     # Setup logging from verbosity flags
@@ -482,6 +499,8 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(_run_snapshot(args))
     elif args.command == "cache":
         _run_cache(args)
+    elif args.command == "history":
+        _run_history(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -1615,3 +1634,71 @@ async def _run_snapshot(args: argparse.Namespace) -> None:
 
     save_snapshot(snap, args.output)
     print(f"\nSnapshot saved to {args.output} ({len(snap.samples)} samples)")
+
+
+def _run_history(args: argparse.Namespace) -> None:
+    """Handle history subcommands."""
+    from pathlib import Path
+
+    from rich.console import Console
+    from rich.table import Table
+
+    from xpyd_acc.history import HistoryStore
+
+    history_dir = Path(args.history_dir) if getattr(args, "history_dir", None) else None
+    store = HistoryStore(history_dir=history_dir)
+
+    if args.history_action == "save":
+        entry = store.save(report_path=args.report, tag=args.tag)
+        print(f"Saved: {entry.entry_id} | rate={entry.divergence_rate:.4f} | "
+              f"samples={entry.sample_count} | tag={entry.tag or '(none)'}")
+
+    elif args.history_action == "list":
+        entries = store.list_entries()
+        if not entries:
+            print("No history entries found.")
+            return
+        console = Console()
+        table = Table(title="History Entries")
+        table.add_column("ID", style="dim")
+        table.add_column("Timestamp")
+        table.add_column("Tag")
+        table.add_column("Divergence Rate", justify="right")
+        table.add_column("Samples", justify="right")
+        for e in entries:
+            table.add_row(
+                e.entry_id, e.timestamp[:19], e.tag or "-",
+                f"{e.divergence_rate:.4f}", str(e.sample_count),
+            )
+        console.print(table)
+
+    elif args.history_action == "trend":
+        trend_data = store.trend(last_n=args.last)
+        if not trend_data:
+            print("No history entries for trend analysis.")
+            return
+        console = Console()
+        table = Table(title="Divergence Rate Trend")
+        table.add_column("Timestamp")
+        table.add_column("Tag")
+        table.add_column("Rate", justify="right")
+        table.add_column("Delta", justify="right")
+        table.add_column("Samples", justify="right")
+        for t in trend_data:
+            delta_str = f"{t['delta']:+.4f}" if t['delta'] != 0 else "-"
+            style = "red" if t['delta'] > 0 else ("green" if t['delta'] < 0 else "")
+            table.add_row(
+                t["timestamp"][:19], t["tag"] or "-",
+                f"{t['divergence_rate']:.4f}", delta_str,
+                str(t["sample_count"]), style=style,
+            )
+        console.print(table)
+
+        if args.fail_on_regression and store.has_regression(last_n=args.last):
+            print("\nFAIL: Divergence rate increased in the latest run.")
+            sys.exit(1)
+        elif args.fail_on_regression:
+            print("\nPASS: No regression detected.")
+
+    else:
+        print("Usage: xpyd-acc history {save|list|trend}")
