@@ -215,3 +215,11 @@
 - JSON log file via `--log <path>` for post-hoc analysis
 - Ctrl+C gracefully stops and prints summary
 - Useful for monitoring PD accuracy during long-running deployments
+
+## M30: Snapshot Baseline Capture & Replay ⬜
+- `xpyd-acc snapshot capture --baseline <url> --dataset <path> --output <snap.json>` — capture baseline once
+- `batch-compare --snapshot <snap.json> --target <url>` — replay without baseline endpoint
+- Snapshot stores: timestamp, endpoint URL, model, per-sample outputs + logprobs
+- Dataset/snapshot validation (mismatched sample IDs raise clear error)
+- Progress bars, template support, all export formats (CSV, JSON, Markdown)
+- Eliminates redundant baseline API calls for repeated comparisons
