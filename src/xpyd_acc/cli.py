@@ -45,6 +45,15 @@ def main(argv: list[str] | None = None) -> None:
         "-V", "--version", action="version",
         version=f"%(prog)s {_get_version()}",
     )
+    verbosity_group = parser.add_mutually_exclusive_group()
+    verbosity_group.add_argument(
+        "-v", "--verbose", action="count", default=0,
+        help="Increase verbosity (-v for INFO, -vv for DEBUG)",
+    )
+    verbosity_group.add_argument(
+        "-q", "--quiet", action="store_true", default=False,
+        help="Quiet mode (ERROR level only)",
+    )
     parser.add_argument(
         "--config", default=None,
         help="Path to TOML config file (auto-discovers xpyd-acc.toml in cwd if not set)",
@@ -241,6 +250,12 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("profiles", help="List available named profiles")
 
     args = parser.parse_args(argv)
+
+    # Setup logging from verbosity flags
+    from xpyd_acc.log import setup_logging
+    verbosity = -1 if args.quiet else args.verbose
+    setup_logging(verbosity)
+
     if not args.command:
         parser.print_help()
         return

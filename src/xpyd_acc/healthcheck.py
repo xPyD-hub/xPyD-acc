@@ -7,6 +7,10 @@ from dataclasses import dataclass
 
 import httpx
 
+from xpyd_acc.log import get_logger
+
+logger = get_logger("healthcheck")
+
 
 @dataclass
 class HealthCheckResult:
@@ -48,6 +52,7 @@ async def check_endpoint(
     base_url = url.rstrip("/")
     models_url = f"{base_url}/v1/models"
     headers = {"Authorization": f"Bearer {api_key}"}
+    logger.info("Checking endpoint health: %s", models_url)
 
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:

@@ -19,6 +19,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from xpyd_acc.log import get_logger
+
+logger = get_logger("config")
+
 AUTO_CONFIG_NAME = "xpyd-acc.toml"
 
 
@@ -133,7 +137,9 @@ def discover_config() -> AppConfig | None:
     """
     candidate = Path.cwd() / AUTO_CONFIG_NAME
     if candidate.exists():
+        logger.info("Auto-discovered config: %s", candidate)
         return load_config(candidate)
+    logger.debug("No config file found in %s", Path.cwd())
     return None
 
 

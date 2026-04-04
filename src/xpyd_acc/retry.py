@@ -8,7 +8,11 @@ from typing import Any, Callable, TypeVar
 
 import httpx
 
+from xpyd_acc.log import get_logger
+
 T = TypeVar("T")
+
+logger = get_logger("retry")
 
 #: HTTP status codes that trigger a retry.
 RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
@@ -64,9 +68,17 @@ async def retry_async(
                 raise
             last_error = exc
             delay = _compute_delay(exc.response, attempt, base_delay)
+            logger.info(
+                "Attempt %d/%d failed (HTTP %d), retrying in %.1fs",
+                attempt + 1, retries, exc.response.status_code, delay,
+            )
         except (httpx.ConnectError, httpx.TimeoutException) as exc:
             last_error = exc
             delay = _backoff(attempt, base_delay)
+            logger.info(
+                "Attempt %d/%d failed (%s), retrying in %.1fs",
+                attempt + 1, retries, type(exc).__name__, delay,
+            )
         else:
             break  # pragma: no cover – unreachable but keeps linter happy
 
