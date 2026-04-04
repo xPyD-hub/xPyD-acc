@@ -23,7 +23,24 @@ def main(argv: list[str] | None = None) -> None:
     lp.add_argument("--max-tokens", type=int, default=64, help="Max tokens to generate")
     lp.add_argument("--api-key", default="no-key", help="API key for both endpoints")
 
-    sub.add_parser("diagnose", help="Run full diagnostic pipeline")
+    diag = sub.add_parser("diagnose", help="Run full diagnostic pipeline")
+    diag.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    diag.add_argument("--target", required=True, help="Target endpoint URL")
+    diag.add_argument("--prompt", required=True, help="Prompt to send")
+    diag.add_argument("--model", default="default", help="Model name")
+    diag.add_argument("--max-tokens", type=int, default=64, help="Max tokens to generate")
+    diag.add_argument("--api-key", default="no-key", help="API key for endpoints")
+    diag.add_argument("--kv-baseline", default=None, help="Path to baseline KV cache (.npz)")
+    diag.add_argument("--kv-target", default=None, help="Path to target KV cache (.npz)")
+    diag.add_argument(
+        "--kv-max-abs-threshold", type=float, default=1e-3,
+        help="KV cache max absolute diff threshold (default: 1e-3)",
+    )
+    diag.add_argument(
+        "--kv-cosine-threshold", type=float, default=0.999,
+        help="KV cache cosine similarity threshold (default: 0.999)",
+    )
+    diag.add_argument("--json", action="store_true", help="Output report as JSON")
 
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
@@ -47,6 +64,8 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(_run_compare_logprobs(args))
     elif args.command == "check-kv":
         _run_check_kv(args)
+    elif args.command == "diagnose":
+        asyncio.run(_run_diagnose(args))
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -70,6 +89,34 @@ async def _run_compare_logprobs(args: argparse.Namespace) -> None:
     print(comparator.format_report(report))
 
     if not report.match:
+        sys.exit(1)
+
+
+async def _run_diagnose(args: argparse.Namespace) -> None:
+    """Run the full diagnostic pipeline."""
+    from xpyd_acc.diagnose import DiagnosticPipeline, format_rich_report
+
+    pipeline = DiagnosticPipeline(
+        baseline_url=args.baseline,
+        target_url=args.target,
+        prompt=args.prompt,
+        model=args.model,
+        api_key=args.api_key,
+        max_tokens=args.max_tokens,
+        kv_baseline_path=args.kv_baseline,
+        kv_target_path=args.kv_target,
+        kv_max_abs_threshold=args.kv_max_abs_threshold,
+        kv_cosine_threshold=args.kv_cosine_threshold,
+    )
+
+    report = await pipeline.run()
+
+    if args.json:
+        print(report.to_json())
+    else:
+        print(format_rich_report(report))
+
+    if not report.overall_pass:
         sys.exit(1)
 
 
