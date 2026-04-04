@@ -259,3 +259,12 @@
 - Works with single-target batch comparison and rerun mode
 - No behavior change when flag is off (default)
 - Tests for dedup on/off, with and without duplicates
+
+## M35: Shell Completion Generation ✅
+- `xpyd-acc completion bash` outputs Bash completion script
+- `xpyd-acc completion zsh` outputs Zsh completion script
+- `xpyd-acc completion fish` outputs Fish completion script
+- Completions cover all subcommands, flags, and profile names
+- Usage: `eval "$(xpyd-acc completion bash)"` or save to a file
+- `--output <path>` flag to write directly to a file
+- Tests for completion script generation (non-empty output, valid syntax markers)
