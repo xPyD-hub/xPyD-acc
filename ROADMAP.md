@@ -312,3 +312,11 @@
 - Exit 0 if valid, exit 1 if errors found
 - Profiles section treated as free-form (no validation)
 - 20 tests covering init, overwrite protection, validation pass/fail, CLI integration
+
+## M40: CSV and JSON Array Dataset Format Support ✅
+- `load_dataset()` auto-detects format by file extension (`.csv`, `.json`, `.jsonl`)
+- CSV support: header row with `prompt` column required, optional `id`, `expected`, metadata
+- JSON array support: `[{"prompt": ...}, ...]` format
+- JSONL remains default for unknown extensions
+- Clear error messages for missing `prompt` column/field, non-array JSON, non-object items
+- 11 tests covering all formats, error cases, and fallback behavior
