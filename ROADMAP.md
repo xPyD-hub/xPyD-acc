@@ -124,7 +124,7 @@
 - Avoids API keys in shell history
 - `env.py` module with `get_env_defaults()` and `apply_env_defaults()`
 
-## M19: Markdown Report Export
+## M19: Markdown Report Export ✅
 - `batch-compare --markdown <path>` exports a Markdown report
 - `BatchReport.to_markdown()` method for programmatic use
 - Summary table, classification breakdown, divergence stats
