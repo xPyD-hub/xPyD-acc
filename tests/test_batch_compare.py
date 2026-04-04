@@ -241,6 +241,39 @@ class TestFormatReport:
         assert "30.0%" in text
 
 
+class TestBatchReportToJson:
+    def test_to_json_round_trip(self) -> None:
+        """Test that to_json() produces valid JSON with correct fields."""
+        import json as json_mod
+
+        results = [
+            SampleResult(
+                sample_id="0", prompt="hello", baseline_output="hi",
+                target_output="hi", exact_match=True,
+                first_divergence_index=None,
+                baseline_logprob_at_divergence=None,
+                target_logprob_at_divergence=None,
+                logprob_gap=None, classification="match",
+                context_length=1,
+            ),
+            SampleResult(
+                sample_id="1", prompt="world", baseline_output="a",
+                target_output="b", exact_match=False,
+                first_divergence_index=0,
+                baseline_logprob_at_divergence=-0.5,
+                target_logprob_at_divergence=-0.8,
+                logprob_gap=0.3, classification="likely_bug",
+                context_length=1,
+            ),
+        ]
+        report = compute_report(results)
+        data = json_mod.loads(report.to_json())
+        assert data["total_samples"] == 2
+        assert data["divergent_samples"] == 1
+        assert len(data["results"]) == 2
+        assert data["results"][1]["classification"] == "likely_bug"
+
+
 class TestCliParsing:
     def test_batch_compare_args(self) -> None:
         """Test that batch-compare subcommand is registered."""
