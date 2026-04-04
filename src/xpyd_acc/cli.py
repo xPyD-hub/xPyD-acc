@@ -24,7 +24,19 @@ def main(argv: list[str] | None = None) -> None:
     lp.add_argument("--api-key", default="no-key", help="API key for both endpoints")
 
     sub.add_parser("diagnose", help="Run full diagnostic pipeline")
-    sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
+
+    kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
+    kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
+    kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
+    kv.add_argument(
+        "--max-abs-threshold", type=float, default=1e-3,
+        help="Max absolute diff threshold for divergence (default: 1e-3)",
+    )
+    kv.add_argument(
+        "--cosine-threshold", type=float, default=0.999,
+        help="Cosine similarity threshold for divergence (default: 0.999)",
+    )
+    kv.add_argument("--json", action="store_true", help="Output report as JSON")
 
     args = parser.parse_args(argv)
     if not args.command:
@@ -33,6 +45,8 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "compare-logprobs":
         asyncio.run(_run_compare_logprobs(args))
+    elif args.command == "check-kv":
+        _run_check_kv(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -54,6 +68,32 @@ async def _run_compare_logprobs(args: argparse.Namespace) -> None:
     report = comparator.compare(baseline_result, target_result)
     print()
     print(comparator.format_report(report))
+
+    if not report.match:
+        sys.exit(1)
+
+
+def _run_check_kv(args: argparse.Namespace) -> None:
+    """Run KV cache comparison between two npz dumps."""
+    from xpyd_acc.kvcache import KVCacheComparator, KVCacheLoader
+
+    baseline = KVCacheLoader.load(args.baseline)
+    target = KVCacheLoader.load(args.target)
+
+    comparator = KVCacheComparator(
+        max_abs_threshold=args.max_abs_threshold,
+        cosine_threshold=args.cosine_threshold,
+    )
+    report = comparator.compare(
+        baseline, target,
+        baseline_path=args.baseline,
+        target_path=args.target,
+    )
+
+    if args.json:
+        print(report.to_json())
+    else:
+        print(KVCacheComparator.format_report(report))
 
     if not report.match:
         sys.exit(1)
