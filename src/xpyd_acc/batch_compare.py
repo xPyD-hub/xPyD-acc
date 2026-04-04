@@ -111,12 +111,26 @@ class BatchReport:
 
 
 def load_dataset(path: str | Path) -> list[DatasetSample]:
-    """Load dataset from JSONL file.
+    """Load dataset from JSONL, JSON array, or CSV file.
 
-    Each line should be a JSON object with at least a "prompt" field.
-    Optional fields: "id", "expected", and any other metadata.
+    Format is auto-detected by file extension:
+    - ``.csv`` → CSV with header row (``prompt`` column required)
+    - ``.json`` → JSON array of objects (``prompt`` field required)
+    - ``.jsonl`` or other → JSONL (one JSON object per line, ``prompt`` field required)
+
+    Optional fields for all formats: ``id``, ``expected``, plus arbitrary metadata.
     """
     path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        return _load_csv(path)
+    if suffix == ".json":
+        return _load_json_array(path)
+    return _load_jsonl(path)
+
+
+def _load_jsonl(path: Path) -> list[DatasetSample]:
+    """Load dataset from JSONL file."""
     samples: list[DatasetSample] = []
     with path.open() as f:
         for i, line in enumerate(f):
@@ -127,17 +141,58 @@ def load_dataset(path: str | Path) -> list[DatasetSample]:
             if "prompt" not in obj:
                 msg = f"Line {i + 1}: missing 'prompt' field"
                 raise ValueError(msg)
-            sample_id = str(obj.get("id", i))
-            prompt = obj["prompt"]
-            expected = obj.get("expected")
-            metadata = {k: v for k, v in obj.items() if k not in ("id", "prompt", "expected")}
-            samples.append(DatasetSample(
-                id=sample_id,
-                prompt=prompt,
-                expected=expected,
-                metadata=metadata,
-            ))
+            samples.append(_obj_to_sample(obj, i))
     return samples
+
+
+def _load_json_array(path: Path) -> list[DatasetSample]:
+    """Load dataset from a JSON file containing an array of objects."""
+    with path.open() as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        msg = f"{path}: expected a JSON array, got {type(data).__name__}"
+        raise ValueError(msg)
+    samples: list[DatasetSample] = []
+    for i, obj in enumerate(data):
+        if not isinstance(obj, dict):
+            msg = f"Item {i}: expected a JSON object, got {type(obj).__name__}"
+            raise ValueError(msg)
+        if "prompt" not in obj:
+            msg = f"Item {i}: missing 'prompt' field"
+            raise ValueError(msg)
+        samples.append(_obj_to_sample(obj, i))
+    return samples
+
+
+def _load_csv(path: Path) -> list[DatasetSample]:
+    """Load dataset from a CSV file with a header row."""
+    samples: list[DatasetSample] = []
+    with path.open(newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None or "prompt" not in reader.fieldnames:
+            msg = f"{path}: CSV must have a 'prompt' column"
+            raise ValueError(msg)
+        for i, row in enumerate(reader):
+            if not row.get("prompt"):
+                msg = f"Row {i + 1}: empty or missing 'prompt' value"
+                raise ValueError(msg)
+            obj = dict(row)
+            samples.append(_obj_to_sample(obj, i))
+    return samples
+
+
+def _obj_to_sample(obj: dict[str, Any], index: int) -> DatasetSample:
+    """Convert a dict to a DatasetSample."""
+    sample_id = str(obj.get("id", index))
+    prompt = obj["prompt"]
+    expected = obj.get("expected")
+    metadata = {k: v for k, v in obj.items() if k not in ("id", "prompt", "expected")}
+    return DatasetSample(
+        id=sample_id,
+        prompt=prompt,
+        expected=expected,
+        metadata=metadata,
+    )
 
 
 def _tokenize(text: str) -> list[str]:
