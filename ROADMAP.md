@@ -94,7 +94,7 @@
 - Real-time divergence detection during streaming
 - CLI subcommand `compare-streaming` with `--baseline`, `--target`, `--prompt`
 
-## M14: Endpoint Health Check
+## M14: Endpoint Health Check ✅
 - Pre-flight check: verify both endpoints are reachable before running comparisons
 - `xpyd-acc healthcheck <url>` CLI subcommand
 - Reports: connectivity, response time, model availability
