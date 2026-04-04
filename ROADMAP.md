@@ -111,7 +111,7 @@
 - Timing comparison report between baseline and target
 - Integrated into `compare-streaming` output
 
-## M17: Prompt Template Support
+## M17: Prompt Template Support ✅
 - Load prompt templates from YAML/TOML files
 - Variable substitution in prompts (e.g., `{question}`, `{context}`)
 - Built-in templates for common eval formats (GSM8K, MMLU, etc.)
