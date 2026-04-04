@@ -146,6 +146,14 @@ def main(argv: list[str] | None = None) -> None:
     det.add_argument("url", help="Endpoint URL to probe")
     det.add_argument("--timeout", type=float, default=10.0, help="Request timeout in seconds")
 
+    reg = sub.add_parser("regression", help="Detect regressions between two batch runs")
+    reg.add_argument("--baseline", required=True, help="Path to baseline batch result JSON")
+    reg.add_argument("--current", required=True, help="Path to current batch result JSON")
+    reg.add_argument(
+        "--json", dest="json_path", default=None,
+        help="Export regression report as JSON",
+    )
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -230,6 +238,8 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(_run_diagnose(args))
     elif args.command == "report":
         _run_report(args)
+    elif args.command == "regression":
+        _run_regression(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -606,3 +616,19 @@ def _run_report(args: argparse.Namespace) -> None:
 
     write_html_report(report, args.output)
     print(f"HTML report written to {args.output}")
+
+
+def _run_regression(args: argparse.Namespace) -> None:
+    """Run regression detection between two batch result JSONs."""
+    from xpyd_acc.regression import compare_runs, format_regression_report
+
+    report = compare_runs(args.baseline, args.current)
+    print(format_regression_report(report))
+
+    if getattr(args, "json_path", None):
+        from pathlib import Path
+
+        Path(args.json_path).write_text(report.to_json())
+        print(f"\nRegression report exported to {args.json_path}")
+
+    sys.exit(1 if report.has_regressions else 0)
