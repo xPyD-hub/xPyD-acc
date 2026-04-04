@@ -63,6 +63,10 @@ class BatchReport:
     # Divergence by context length buckets
     divergence_by_context_length: dict[str, dict[str, int]] = field(default_factory=dict)
 
+    def to_markdown(self, *, max_divergent_samples: int = 10) -> str:
+        """Serialize the report to a Markdown string."""
+        return _to_markdown(self, max_divergent_samples=max_divergent_samples)
+
     def to_json(self) -> str:
         """Serialize the report to a JSON string."""
         data: dict[str, Any] = {
@@ -442,3 +446,108 @@ def format_report(report: BatchReport) -> str:
                 )
 
     return "\n".join(lines)
+
+
+def _to_markdown(report: BatchReport, *, max_divergent_samples: int = 10) -> str:
+    """Convert a BatchReport to a Markdown string.
+
+    Args:
+        report: The batch report to convert.
+        max_divergent_samples: Max number of divergent samples to include in detail section.
+    """
+    lines: list[str] = []
+    lines.append("# Batch Comparison Report")
+    lines.append("")
+
+    # Summary table
+    lines.append("## Summary")
+    lines.append("")
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
+    lines.append(f"| Total samples | {report.total_samples} |")
+    lines.append(f"| Matches | {report.match_samples} |")
+    lines.append(f"| Divergent | {report.divergent_samples} |")
+    lines.append(f"| Divergence rate | {report.divergence_rate:.1%} |")
+    lines.append("")
+
+    if report.divergent_samples > 0:
+        # Classification
+        lines.append("## Classification")
+        lines.append("")
+        lines.append("| Category | Count |")
+        lines.append("|----------|-------|")
+        lines.append(f"| Likely bugs | {report.likely_bugs} |")
+        lines.append(f"| Likely uncertainty | {report.likely_uncertainty} |")
+        lines.append(f"| Unknown | {report.unknown_classification} |")
+        lines.append("")
+
+        # Divergence stats
+        if report.divergence_index_mean is not None:
+            lines.append("## Divergence Point Statistics")
+            lines.append("")
+            lines.append("| Stat | Value |")
+            lines.append("|------|-------|")
+            lines.append(f"| Mean token index | {report.divergence_index_mean:.1f} |")
+            lines.append(f"| Median token index | {report.divergence_index_median:.1f} |")
+            if report.logprob_gap_mean is not None:
+                lines.append(f"| Mean logprob gap | {report.logprob_gap_mean:.6f} |")
+                lines.append(f"| Median logprob gap | {report.logprob_gap_median:.6f} |")
+            lines.append("")
+
+        # Context length analysis
+        if report.divergence_by_context_length:
+            lines.append("## Divergence by Context Length")
+            lines.append("")
+            lines.append("| Bucket | Divergent | Total | Rate |")
+            lines.append("|--------|-----------|-------|------|")
+            for bucket in sorted(report.divergence_by_context_length.keys()):
+                stats = report.divergence_by_context_length[bucket]
+                rate = stats["divergent"] / stats["total"] if stats["total"] > 0 else 0
+                lines.append(
+                    f"| {bucket} | {stats['divergent']} | {stats['total']} | {rate:.1%} |"
+                )
+            lines.append("")
+
+        # Top divergent samples
+        divergent = [r for r in report.results if r.is_divergent()]
+        shown = divergent[:max_divergent_samples]
+        if shown:
+            lines.append(f"## Top Divergent Samples (showing {len(shown)}/{len(divergent)})")
+            lines.append("")
+            for r in shown:
+                lines.append(f"### Sample {r.sample_id}")
+                lines.append("")
+                lines.append(f"- **Classification:** {r.classification}")
+                lines.append(
+                    f"- **First divergence at token:** {r.first_divergence_index}"
+                )
+                if r.logprob_gap is not None:
+                    lines.append(f"- **Logprob gap:** {r.logprob_gap:.6f}")
+                prompt_preview = _truncate(r.prompt, 200)
+                lines.append(f"- **Prompt:** `{prompt_preview}`")
+                baseline_preview = _truncate(r.baseline_output, 200)
+                target_preview = _truncate(r.target_output, 200)
+                lines.append(f"- **Baseline:** `{baseline_preview}`")
+                lines.append(f"- **Target:** `{target_preview}`")
+                lines.append("")
+
+    return "\n".join(lines)
+
+
+def export_markdown(
+    report: BatchReport,
+    path: str | Path | None = None,
+    *,
+    max_divergent_samples: int = 10,
+) -> str:
+    """Export report as Markdown. Returns Markdown string. If path given, also writes to file.
+
+    Args:
+        report: The batch report to export.
+        path: Optional file path to write Markdown to.
+        max_divergent_samples: Max divergent samples to show in detail.
+    """
+    md = _to_markdown(report, max_divergent_samples=max_divergent_samples)
+    if path is not None:
+        Path(path).write_text(md)
+    return md
