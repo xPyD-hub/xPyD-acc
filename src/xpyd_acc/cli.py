@@ -109,7 +109,10 @@ def main(argv: list[str] | None = None) -> None:
 
     bc = sub.add_parser("batch-compare", help="Run batch dataset comparison")
     bc.add_argument("--baseline", default=None, help="Baseline endpoint URL")
-    bc.add_argument("--target", required=True, help="Target endpoint URL")
+    bc.add_argument(
+        "--target", required=True, action="append",
+        help="Target endpoint URL (can be specified multiple times)",
+    )
     bc.add_argument(
         "--snapshot", default=None, metavar="SNAPSHOT_JSON",
         help="Use saved snapshot as baseline (mutually exclusive with --baseline)",
@@ -504,6 +507,9 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         await _run_rerun(args)
         return
 
+    # Normalize target: always a list from argparse action="append"
+    target_urls: list[str] = args.target if isinstance(args.target, list) else [args.target]
+
     # Handle dry run mode
     if getattr(args, "dry_run", False):
         from xpyd_acc.dry_run import format_dry_run, run_dry_run
@@ -511,7 +517,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         result = await run_dry_run(
             args.dataset,
             args.baseline,
-            args.target,
+            target_urls[0],
             template=args.template,
             skip_healthcheck=args.skip_healthcheck,
             model=args.model,
@@ -535,6 +541,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         format_report,
         load_dataset,
         run_batch,
+        run_multi_batch,
     )
     from xpyd_acc.sampling import SamplingParams
 
@@ -554,7 +561,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
     print(f"Loaded {len(samples)} samples from {args.dataset}")
 
     if not args.skip_healthcheck:
-        await _preflight_healthcheck([args.baseline, args.target], api_key=args.api_key)
+        await _preflight_healthcheck([args.baseline, *target_urls], api_key=args.api_key)
 
     # Set up Rich progress bar unless disabled or non-TTY
     use_progress = not args.no_progress and sys.stderr.isatty()
@@ -604,58 +611,131 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             or match_config.numeric_tolerance is not None
         ) else None
 
-        report = await run_batch(
-            samples,
-            args.baseline,
-            args.target,
-            model=args.model,
-            max_tokens=args.max_tokens,
-            api_key=args.api_key,
-            logprob_gap_threshold=args.logprob_gap_threshold,
-            concurrency=args.concurrency,
-            retries=args.retries,
-            retry_delay=args.retry_delay,
-            on_progress=on_progress if use_progress else None,
-            match_config=effective_match,
-            sampling_params=sampling,
-            timeout=args.timeout,
-        )
+        is_multi = len(target_urls) > 1
+
+        if is_multi:
+            multi_report = await run_multi_batch(
+                samples,
+                args.baseline,
+                target_urls,
+                model=args.model,
+                max_tokens=args.max_tokens,
+                api_key=args.api_key,
+                logprob_gap_threshold=args.logprob_gap_threshold,
+                concurrency=args.concurrency,
+                retries=args.retries,
+                retry_delay=args.retry_delay,
+                on_progress=on_progress if use_progress else None,
+                match_config=effective_match,
+                sampling_params=sampling,
+                timeout=args.timeout,
+            )
+            report = None  # not used in multi-target path
+        else:
+            multi_report = None
+            report = await run_batch(
+                samples,
+                args.baseline,
+                target_urls[0],
+                model=args.model,
+                max_tokens=args.max_tokens,
+                api_key=args.api_key,
+                logprob_gap_threshold=args.logprob_gap_threshold,
+                concurrency=args.concurrency,
+                retries=args.retries,
+                retry_delay=args.retry_delay,
+                on_progress=on_progress if use_progress else None,
+                match_config=effective_match,
+                sampling_params=sampling,
+                timeout=args.timeout,
+            )
     finally:
         if progress_ctx is not None:
             progress_ctx.stop()
 
-    print()
-    print(format_report(report))
+    if multi_report is not None:
+        # Multi-target mode
+        for url in target_urls:
+            print(f"\n--- Target: {url} ---")
+            print(format_report(multi_report.per_target[url]))
 
-    if args.csv:
-        export_csv(report, args.csv)
-        print(f"\nCSV exported to {args.csv}")
+        if len(target_urls) > 1:
+            print("\n--- Cross-Target Agreement Matrix ---")
+            header = f"{'':>30s}"
+            for u in target_urls:
+                header += f" {u[-20:]:>20s}"
+            print(header)
+            for u1 in target_urls:
+                row = f"{u1[-30:]:>30s}"
+                for u2 in target_urls:
+                    val = multi_report.agreement_matrix[u1][u2]
+                    row += f" {val:>19.1%}"
+                print(row)
 
-    if args.json_path:
-        from pathlib import Path
-        Path(args.json_path).write_text(report.to_json())
-        print(f"\nJSON exported to {args.json_path}")
+        if args.json_path:
+            from pathlib import Path
+            Path(args.json_path).write_text(multi_report.to_json())
+            print(f"\nJSON exported to {args.json_path}")
 
-    if args.markdown:
-        export_markdown(report, args.markdown)
-        print(f"\nMarkdown exported to {args.markdown}")
+        if args.markdown:
+            from pathlib import Path
+            Path(args.markdown).write_text(multi_report.to_markdown())
+            print(f"\nMarkdown exported to {args.markdown}")
 
-    # Determine fail threshold: CLI > env > config > None
-    fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
-    if fail_threshold is not None:
-        if report.divergence_rate > fail_threshold:
-            print(
-                f"\n✗ FAIL: divergence rate {report.divergence_rate:.1%}"
-                f" exceeds threshold {fail_threshold:.1%}",
-            )
+        if args.csv:
+            first_report = multi_report.per_target[target_urls[0]]
+            export_csv(first_report, args.csv)
+            print(f"\nCSV exported to {args.csv} (first target)")
+
+        fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
+        worst_rate = max(r.divergence_rate for r in multi_report.per_target.values())
+        if fail_threshold is not None:
+            if worst_rate > fail_threshold:
+                print(
+                    f"\n✗ FAIL: worst divergence rate {worst_rate:.1%}"
+                    f" exceeds threshold {fail_threshold:.1%}",
+                )
+                sys.exit(1)
+            else:
+                print(
+                    f"\n✓ PASS: worst divergence rate {worst_rate:.1%}"
+                    f" within threshold {fail_threshold:.1%}",
+                )
+        elif any(r.divergent_samples > 0 for r in multi_report.per_target.values()):
             sys.exit(1)
-        else:
-            print(
-                f"\n✓ PASS: divergence rate {report.divergence_rate:.1%}"
-                f" within threshold {fail_threshold:.1%}",
-            )
-    elif report.divergent_samples > 0:
-        sys.exit(1)
+    else:
+        print()
+        print(format_report(report))
+
+        if args.csv:
+            export_csv(report, args.csv)
+            print(f"\nCSV exported to {args.csv}")
+
+        if args.json_path:
+            from pathlib import Path
+            Path(args.json_path).write_text(report.to_json())
+            print(f"\nJSON exported to {args.json_path}")
+
+        if args.markdown:
+            export_markdown(report, args.markdown)
+            print(f"\nMarkdown exported to {args.markdown}")
+
+        # Determine fail threshold: CLI > env > config > None
+        fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
+        if fail_threshold is not None:
+            if report.divergence_rate > fail_threshold:
+                print(
+                    f"\n✗ FAIL: divergence rate {report.divergence_rate:.1%}"
+                    f" exceeds threshold {fail_threshold:.1%}",
+                )
+                sys.exit(1)
+            else:
+                print(
+                    f"\n✓ PASS: divergence rate {report.divergence_rate:.1%}"
+                    f" within threshold {fail_threshold:.1%}",
+                )
+        elif report.divergent_samples > 0:
+            sys.exit(1)
 
 
 def _resolve_fail_threshold(
@@ -701,8 +781,10 @@ async def _run_rerun(args: argparse.Namespace) -> None:
         f"out of {plan.total_in_report} total"
     )
 
+    rerun_target = args.target[0] if isinstance(args.target, list) else args.target
+
     if not args.skip_healthcheck:
-        await _preflight_healthcheck([args.baseline, args.target], api_key=args.api_key)
+        await _preflight_healthcheck([args.baseline, rerun_target], api_key=args.api_key)
 
     # Apply template if specified
     if args.template:
@@ -764,7 +846,7 @@ async def _run_rerun(args: argparse.Namespace) -> None:
         report = await run_batch(
             plan.divergent_samples,
             args.baseline,
-            args.target,
+            rerun_target,
             model=args.model,
             max_tokens=args.max_tokens,
             api_key=args.api_key,

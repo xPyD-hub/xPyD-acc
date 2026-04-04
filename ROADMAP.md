@@ -233,3 +233,12 @@
 - Priority: CLI > env > config > None
 - Clear terminal PASS/FAIL message with threshold comparison
 - Also applies to `--rerun` mode
+
+## M32: Multi-Target Comparison
+- `batch-compare --target <url1> --target <url2> ...` supports multiple targets
+- Compare one baseline against N target endpoints simultaneously
+- Per-target results in the batch report (separate divergence stats per target)
+- Combined summary: which targets diverge on which samples
+- Cross-target agreement matrix (do different targets agree with each other?)
+- JSON/CSV/Markdown export includes per-target breakdowns
+- Useful for comparing different PD configurations side by side
