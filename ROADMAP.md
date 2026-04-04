@@ -29,7 +29,7 @@
 - Semantic similarity score (optional, if embeddings available)
 - Support for comparing streaming vs non-streaming outputs
 
-## M6: Batch Dataset Comparison ⬜
+## M6: Batch Dataset Comparison ✅
 - Run full benchmark dataset on both aggregated and PD modes
 - Auto-extract divergent samples (aggregated correct, PD wrong)
 - Per-sample token-level diff with first divergence point
