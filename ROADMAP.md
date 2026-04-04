@@ -100,7 +100,7 @@
 - Reports: connectivity, response time, model availability
 - Auto-check before `batch-compare` and `compare-streaming` with `--skip-healthcheck` opt-out
 
-## M15: CSV Export for Batch Results
+## M15: CSV Export for Batch Results ✅
 - `batch-compare --csv <path>` exports per-sample results to CSV
 - Columns: sample_id, prompt (truncated), baseline_output, target_output, match, divergence_index, logprob_gap
 - Useful for spreadsheet analysis and filtering
