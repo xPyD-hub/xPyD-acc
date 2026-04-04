@@ -259,6 +259,7 @@ async def run_batch(
     sampling_params: Any | None = None,
     timeout: float = 120.0,
     enable_request_ids: bool = True,
+    deduplicate: bool = False,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -267,31 +268,63 @@ async def run_batch(
             Receives (completed_count, total_count).
         timeout: HTTP request timeout in seconds (default 120.0).
         enable_request_ids: Attach X-Request-ID headers to API requests.
+        deduplicate: If True, send each unique prompt only once per endpoint
+            and reuse results for duplicate prompts. Saves API calls.
     """
     logger.info("Starting batch comparison: %d samples, concurrency=%d", len(samples), concurrency)
+
+    # Deduplication: group samples by prompt, send unique prompts only once
+    if deduplicate:
+        prompt_groups: dict[str, list[DatasetSample]] = {}
+        for s in samples:
+            prompt_groups.setdefault(s.prompt, []).append(s)
+        unique_prompts = list(prompt_groups.keys())
+        api_calls_saved = (len(samples) - len(unique_prompts)) * 2  # baseline + target
+        logger.info(
+            "Deduplication: %d unique prompts from %d samples (%d API calls saved)",
+            len(unique_prompts), len(samples), api_calls_saved,
+        )
+    else:
+        prompt_groups = {}
+        unique_prompts = []
+
     semaphore = asyncio.Semaphore(concurrency)
     results: list[SampleResult] = []
     completed = 0
 
-    async def process_sample(sample: DatasetSample) -> SampleResult:
+    async def _collect_pair(
+        prompt: str,
+    ) -> tuple[str, list[dict[str, Any]], str, str, list[dict[str, Any]], str]:
+        """Collect outputs from both endpoints for a single prompt."""
         b_rid = str(uuid.uuid4()) if enable_request_ids else ""
         t_rid = str(uuid.uuid4()) if enable_request_ids else ""
         async with semaphore:
             baseline_text, baseline_lp, b_rid_out = await _collect_output(
-                baseline_url, sample.prompt, model=model,
+                baseline_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
                 request_id=b_rid if enable_request_ids else None,
             )
             target_text, target_lp, t_rid_out = await _collect_output(
-                target_url, sample.prompt, model=model,
+                target_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
                 request_id=t_rid if enable_request_ids else None,
             )
+        return baseline_text, baseline_lp, b_rid_out, target_text, target_lp, t_rid_out
 
+    def _build_result(
+        sample: DatasetSample,
+        baseline_text: str,
+        baseline_lp: list[dict[str, Any]],
+        b_rid_out: str,
+        target_text: str,
+        target_lp: list[dict[str, Any]],
+        t_rid_out: str,
+    ) -> SampleResult:
+        """Build a SampleResult from collected outputs."""
         b_tokens = _tokenize(baseline_text)
         t_tokens = _tokenize(target_text)
 
@@ -338,6 +371,41 @@ async def run_batch(
             context_length=ctx_len,
             request_ids=req_ids,
         )
+
+    _PairResult = tuple[str, list[dict[str, Any]], str, str, list[dict[str, Any]], str]
+
+    if deduplicate:
+        # Send unique prompts only, then fan out results
+        total = len(unique_prompts)
+
+        async def _tracked_unique(prompt: str) -> _PairResult:
+            nonlocal completed
+            result = await _collect_pair(prompt)
+            completed += 1
+            if on_progress is not None:
+                on_progress(completed, total)
+            return result
+
+        tasks = [_tracked_unique(p) for p in unique_prompts]
+        pair_results = await asyncio.gather(*tasks)
+
+        # Map back to all samples
+        prompt_to_pair: dict[str, _PairResult] = {}
+        for prompt, pair in zip(unique_prompts, pair_results):
+            prompt_to_pair[prompt] = pair
+
+        # Build results in original sample order
+        all_results: list[SampleResult] = []
+        for sample in samples:
+            bt, blp, brid, tt, tlp, trid = prompt_to_pair[sample.prompt]
+            all_results.append(_build_result(sample, bt, blp, brid, tt, tlp, trid))
+        results = all_results
+
+        return compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
+
+    async def process_sample(sample: DatasetSample) -> SampleResult:
+        bt, blp, brid, tt, tlp, trid = await _collect_pair(sample.prompt)
+        return _build_result(sample, bt, blp, brid, tt, tlp, trid)
 
     total = len(samples)
 

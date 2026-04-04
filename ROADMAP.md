@@ -250,3 +250,12 @@
 - Request IDs logged at DEBUG level
 - `--no-request-id` flag to disable the feature
 - Tests for request ID generation and header injection
+
+## M34: Prompt Deduplication for Batch Comparison ✅
+- `--deduplicate` flag on `batch-compare` to send each unique prompt only once per endpoint
+- TOML config: `[batch] deduplicate = true`
+- Results mapped back to all samples sharing the same prompt
+- Reduces API calls when dataset contains duplicate prompts
+- Works with single-target batch comparison and rerun mode
+- No behavior change when flag is off (default)
+- Tests for dedup on/off, with and without duplicates

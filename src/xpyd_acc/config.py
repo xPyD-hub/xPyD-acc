@@ -52,6 +52,7 @@ class BatchConfig:
     dataset: str | None = None
     csv: str | None = None
     fail_threshold: float | None = None
+    deduplicate: bool = False
 
 
 @dataclass
@@ -186,6 +187,7 @@ def merge_cli_args(config: AppConfig, args: dict[str, Any], command: str) -> dic
             "dataset": config.batch.dataset,
             "csv": config.batch.csv,
             "fail_threshold": config.batch.fail_threshold,
+            "deduplicate": config.batch.deduplicate,
         }
         for key, config_val in batch_map.items():
             if key in merged and merged[key] is None and config_val is not None:

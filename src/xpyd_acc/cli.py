@@ -186,6 +186,10 @@ def main(argv: list[str] | None = None) -> None:
         "--no-request-id", action="store_true", default=False,
         help="Disable X-Request-ID headers on API requests",
     )
+    bc.add_argument(
+        "--deduplicate", action="store_true", default=False,
+        help="Send each unique prompt only once per endpoint, reuse results for duplicates",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -652,6 +656,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 match_config=effective_match,
                 sampling_params=sampling,
                 timeout=args.timeout,
+                deduplicate=getattr(args, "deduplicate", False),
             )
     finally:
         if progress_ctx is not None:
@@ -862,6 +867,7 @@ async def _run_rerun(args: argparse.Namespace) -> None:
             match_config=effective_match,
             sampling_params=sampling,
             timeout=args.timeout,
+            deduplicate=getattr(args, "deduplicate", False),
         )
     finally:
         if progress_ctx is not None:
