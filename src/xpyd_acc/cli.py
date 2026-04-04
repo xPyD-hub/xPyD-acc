@@ -93,6 +93,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     bc.add_argument("--csv", default=None, help="Path to export CSV results")
     bc.add_argument("--json", default=None, dest="json_path", help="Path to export JSON results")
+    bc.add_argument("--markdown", default=None, help="Path to export Markdown report")
     bc.add_argument("--retries", type=int, default=None, help="Max retry attempts (default: 3)")
     bc.add_argument(
         "--retry-delay", type=float, default=None,
@@ -257,7 +258,13 @@ async def _run_healthcheck(args: argparse.Namespace) -> None:
 
 async def _run_batch_compare(args: argparse.Namespace) -> None:
     """Run batch dataset comparison."""
-    from xpyd_acc.batch_compare import export_csv, format_report, load_dataset, run_batch
+    from xpyd_acc.batch_compare import (
+        export_csv,
+        export_markdown,
+        format_report,
+        load_dataset,
+        run_batch,
+    )
 
     samples = load_dataset(args.dataset)
 
@@ -338,6 +345,10 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         from pathlib import Path
         Path(args.json_path).write_text(report.to_json())
         print(f"\nJSON exported to {args.json_path}")
+
+    if args.markdown:
+        export_markdown(report, args.markdown)
+        print(f"\nMarkdown exported to {args.markdown}")
 
     if report.divergent_samples > 0:
         sys.exit(1)

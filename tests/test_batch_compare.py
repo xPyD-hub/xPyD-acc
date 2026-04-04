@@ -12,6 +12,7 @@ from xpyd_acc.batch_compare import (
     classify_divergence,
     compute_report,
     export_csv,
+    export_markdown,
     format_report,
     load_dataset,
 )
@@ -379,3 +380,126 @@ class TestOnProgressCallback:
             ))
 
         assert report.total_samples == 1
+
+
+class TestToMarkdown:
+    def _make_report(self, *, divergent: bool = True) -> BatchReport:
+        results = [
+            SampleResult(
+                sample_id="0",
+                prompt="What is 2+2?",
+                baseline_output="4",
+                target_output="4",
+                exact_match=True,
+                first_divergence_index=None,
+                baseline_logprob_at_divergence=None,
+                target_logprob_at_divergence=None,
+                logprob_gap=None,
+                classification="match",
+                context_length=10,
+            ),
+        ]
+        if divergent:
+            results.append(SampleResult(
+                sample_id="1",
+                prompt="Explain gravity",
+                baseline_output="Gravity is a force",
+                target_output="Gravity is energy",
+                exact_match=False,
+                first_divergence_index=3,
+                baseline_logprob_at_divergence=-0.5,
+                target_logprob_at_divergence=-1.2,
+                logprob_gap=0.5,
+                classification="likely_bug",
+                context_length=10,
+            ))
+        return compute_report(results)
+
+    def test_markdown_contains_summary(self) -> None:
+        report = self._make_report()
+        md = report.to_markdown()
+        assert "# Batch Comparison Report" in md
+        assert "| Total samples | 2 |" in md
+        assert "| Divergent | 1 |" in md
+
+    def test_markdown_contains_classification(self) -> None:
+        report = self._make_report()
+        md = report.to_markdown()
+        assert "## Classification" in md
+        assert "| Likely bugs | 1 |" in md
+
+    def test_markdown_contains_divergent_samples(self) -> None:
+        report = self._make_report()
+        md = report.to_markdown()
+        assert "### Sample 1" in md
+        assert "likely_bug" in md
+
+    def test_markdown_no_divergent_section_when_all_match(self) -> None:
+        report = self._make_report(divergent=False)
+        md = report.to_markdown()
+        assert "## Classification" not in md
+        assert "### Sample" not in md
+
+    def test_markdown_max_divergent_samples(self) -> None:
+        results = []
+        for i in range(20):
+            results.append(SampleResult(
+                sample_id=str(i),
+                prompt=f"prompt {i}",
+                baseline_output="a",
+                target_output="b",
+                exact_match=False,
+                first_divergence_index=0,
+                baseline_logprob_at_divergence=None,
+                target_logprob_at_divergence=None,
+                logprob_gap=None,
+                classification="unknown",
+                context_length=5,
+            ))
+        report = compute_report(results)
+        md = report.to_markdown(max_divergent_samples=5)
+        assert "showing 5/20" in md
+
+
+class TestExportMarkdown:
+    def test_export_to_file(self, tmp_path: Path) -> None:
+        results = [
+            SampleResult(
+                sample_id="0",
+                prompt="hi",
+                baseline_output="hello",
+                target_output="hello",
+                exact_match=True,
+                first_divergence_index=None,
+                baseline_logprob_at_divergence=None,
+                target_logprob_at_divergence=None,
+                logprob_gap=None,
+                classification="match",
+                context_length=1,
+            ),
+        ]
+        report = compute_report(results)
+        out = tmp_path / "report.md"
+        md = export_markdown(report, out)
+        assert out.read_text() == md
+        assert "# Batch Comparison Report" in md
+
+    def test_export_no_file(self) -> None:
+        results = [
+            SampleResult(
+                sample_id="0",
+                prompt="hi",
+                baseline_output="hello",
+                target_output="hello",
+                exact_match=True,
+                first_divergence_index=None,
+                baseline_logprob_at_divergence=None,
+                target_logprob_at_divergence=None,
+                logprob_gap=None,
+                classification="match",
+                context_length=1,
+            ),
+        ]
+        report = compute_report(results)
+        md = export_markdown(report)
+        assert "# Batch Comparison Report" in md
