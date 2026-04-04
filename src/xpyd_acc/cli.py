@@ -174,6 +174,10 @@ def main(argv: list[str] | None = None) -> None:
         "--timeout", type=float, default=None,
         help="HTTP request timeout in seconds (default: 120.0)",
     )
+    bc.add_argument(
+        "--fail-threshold", type=float, default=None,
+        help="Fail (exit 1) if divergence rate exceeds this threshold (0.0–1.0)",
+    )
     _add_sampling_args(bc)
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
@@ -396,6 +400,9 @@ def main(argv: list[str] | None = None) -> None:
     for key, default in _FINAL_DEFAULTS.items():
         if hasattr(args, key) and getattr(args, key) is None:
             setattr(args, key, default)
+
+    # Stash config on args for subcommands that need it
+    args._config = config
 
     if args.command == "batch-compare":
         asyncio.run(_run_batch_compare(args))
@@ -633,8 +640,44 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         export_markdown(report, args.markdown)
         print(f"\nMarkdown exported to {args.markdown}")
 
-    if report.divergent_samples > 0:
+    # Determine fail threshold: CLI > env > config > None
+    fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
+    if fail_threshold is not None:
+        if report.divergence_rate > fail_threshold:
+            print(
+                f"\n✗ FAIL: divergence rate {report.divergence_rate:.1%}"
+                f" exceeds threshold {fail_threshold:.1%}",
+            )
+            sys.exit(1)
+        else:
+            print(
+                f"\n✓ PASS: divergence rate {report.divergence_rate:.1%}"
+                f" within threshold {fail_threshold:.1%}",
+            )
+    elif report.divergent_samples > 0:
         sys.exit(1)
+
+
+def _resolve_fail_threshold(
+    args: argparse.Namespace, config: object,
+) -> float | None:
+    """Resolve fail threshold from CLI > env > config > None."""
+    import os
+
+    # CLI flag (already merged from config by merge_cli_args)
+    cli_val = getattr(args, "fail_threshold", None)
+    if cli_val is not None:
+        return cli_val
+
+    # Environment variable
+    env_val = os.environ.get("XPYD_ACC_FAIL_THRESHOLD")
+    if env_val is not None:
+        try:
+            return float(env_val)
+        except ValueError:
+            pass
+
+    return None
 
 
 async def _run_rerun(args: argparse.Namespace) -> None:
@@ -760,7 +803,21 @@ async def _run_rerun(args: argparse.Namespace) -> None:
         export_markdown(report, args.markdown)
         print(f"\nMarkdown exported to {args.markdown}")
 
-    if report.divergent_samples > 0:
+    # Apply fail threshold to rerun mode too
+    fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
+    if fail_threshold is not None:
+        if report.divergence_rate > fail_threshold:
+            print(
+                f"\n✗ FAIL: divergence rate {report.divergence_rate:.1%}"
+                f" exceeds threshold {fail_threshold:.1%}",
+            )
+            sys.exit(1)
+        else:
+            print(
+                f"\n✓ PASS: divergence rate {report.divergence_rate:.1%}"
+                f" within threshold {fail_threshold:.1%}",
+            )
+    elif report.divergent_samples > 0:
         sys.exit(1)
 
 

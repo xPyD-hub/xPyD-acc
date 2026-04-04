@@ -223,3 +223,13 @@
 - Dataset/snapshot validation (mismatched sample IDs raise clear error)
 - Progress bars, template support, all export formats (CSV, JSON, Markdown)
 - Eliminates redundant baseline API calls for repeated comparisons
+
+## M31: CI-Friendly Fail Threshold for Batch Comparison ✅
+- `--fail-threshold <float>` flag (0.0–1.0) for `batch-compare`
+- Exit 0 if divergence rate ≤ threshold, exit 1 if exceeded
+- Default: None (backward compatible — exits 1 on any divergence)
+- TOML config: `[batch] fail_threshold = 0.05`
+- Environment variable: `XPYD_ACC_FAIL_THRESHOLD`
+- Priority: CLI > env > config > None
+- Clear terminal PASS/FAIL message with threshold comparison
+- Also applies to `--rerun` mode
