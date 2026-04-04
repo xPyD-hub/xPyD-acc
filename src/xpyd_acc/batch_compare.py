@@ -11,6 +11,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from xpyd_acc.log import get_logger
+
+logger = get_logger("batch_compare")
+
 
 @dataclass
 class DatasetSample:
@@ -251,6 +255,7 @@ async def run_batch(
             Receives (completed_count, total_count).
         timeout: HTTP request timeout in seconds (default 120.0).
     """
+    logger.info("Starting batch comparison: %d samples, concurrency=%d", len(samples), concurrency)
     semaphore = asyncio.Semaphore(concurrency)
     results: list[SampleResult] = []
     completed = 0

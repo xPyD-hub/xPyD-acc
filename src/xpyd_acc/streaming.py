@@ -10,6 +10,10 @@ from typing import Any, AsyncIterator
 
 import httpx
 
+from xpyd_acc.log import get_logger
+
+logger = get_logger("streaming")
+
 
 @dataclass
 class StreamToken:
@@ -126,6 +130,7 @@ async def collect_stream(
     sampling_params: Any | None = None,
 ) -> list[StreamToken]:
     """Collect all tokens from a streaming endpoint into a list."""
+    logger.info("Collecting stream from %s", collector.url)
     tokens: list[StreamToken] = []
     async for token in collector.stream(
         prompt, max_tokens, timeout=timeout, sampling_params=sampling_params,
