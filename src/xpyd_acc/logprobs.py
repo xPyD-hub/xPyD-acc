@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -64,19 +65,22 @@ class LogprobsCollector:
         timeout: float = 30.0,
         retries: int = 3,
         retry_delay: float = 1.0,
+        sampling_params: Any | None = None,
     ) -> LogprobsResult:
         """Send prompt and collect logprobs from the completions endpoint."""
         from xpyd_acc.retry import retry_async
 
         url = f"{self.base_url}/v1/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}"}
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": max_tokens,
             "logprobs": True,
             "top_logprobs": 1,
         }
+        if sampling_params is not None:
+            payload.update(sampling_params.to_payload())
 
         async def _do_request() -> dict:
             async with httpx.AsyncClient(timeout=timeout) as client:

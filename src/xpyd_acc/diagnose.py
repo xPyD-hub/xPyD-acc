@@ -61,6 +61,7 @@ class DiagnosticPipeline:
         kv_target_path: str | None = None,
         kv_max_abs_threshold: float = 1e-3,
         kv_cosine_threshold: float = 0.999,
+        sampling_params: object | None = None,
     ) -> None:
         self.baseline_url = baseline_url
         self.target_url = target_url
@@ -72,6 +73,7 @@ class DiagnosticPipeline:
         self.kv_target_path = kv_target_path
         self.kv_max_abs_threshold = kv_max_abs_threshold
         self.kv_cosine_threshold = kv_cosine_threshold
+        self.sampling_params = sampling_params
 
     async def run(self) -> DiagnosticReport:
         """Execute all diagnostic steps and return the report."""
@@ -228,8 +230,12 @@ class DiagnosticPipeline:
             self.target_url, api_key=self.api_key, model=self.model,
         )
 
-        baseline_result = await baseline_collector.collect(self.prompt, max_tokens=max_tokens)
-        target_result = await target_collector.collect(self.prompt, max_tokens=max_tokens)
+        baseline_result = await baseline_collector.collect(
+            self.prompt, max_tokens=max_tokens, sampling_params=self.sampling_params,
+        )
+        target_result = await target_collector.collect(
+            self.prompt, max_tokens=max_tokens, sampling_params=self.sampling_params,
+        )
 
         comparator = LogprobsComparator()
         return comparator.compare(baseline_result, target_result)

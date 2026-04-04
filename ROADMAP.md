@@ -163,3 +163,11 @@
 - Merge mode: `--rerun-merge` combines rerun results back into the original report
 - Useful for quick retesting after fixes without rerunning the full dataset
 - Exit code reflects rerun results (0 = all match, 1 = still divergent)
+
+## M24: Sampling Parameter Support
+- CLI flags: `--temperature`, `--top-p`, `--seed` for all comparison commands
+- Propagated to logprobs collection, batch comparison, streaming, and diagnose
+- TOML config support in `[defaults]` section
+- `temperature=0` + `seed` enables deterministic/reproducible comparisons
+- Environment variables: `XPYD_ACC_TEMPERATURE`, `XPYD_ACC_TOP_P`, `XPYD_ACC_SEED`
+- All flags default to None (server decides) to preserve backward compatibility

@@ -36,7 +36,7 @@ def _mock_collect_factory(tokens_a: list[tuple[str, float]], tokens_b: list[tupl
     """Return a side_effect function that returns different results per endpoint."""
     call_count = 0
 
-    async def _collect(prompt, max_tokens=64):
+    async def _collect(prompt, max_tokens=64, **kwargs):
         nonlocal call_count
         call_count += 1
         if call_count % 2 == 1:  # odd calls = baseline

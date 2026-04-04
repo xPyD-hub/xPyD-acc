@@ -33,6 +33,9 @@ class DefaultsConfig:
     max_tokens: int = 64
     retries: int = 3
     retry_delay: float = 1.0
+    temperature: float | None = None
+    top_p: float | None = None
+    seed: int | None = None
 
 
 @dataclass
@@ -152,6 +155,9 @@ def merge_cli_args(config: AppConfig, args: dict[str, Any], command: str) -> dic
         "max_tokens": config.defaults.max_tokens,
         "retries": config.defaults.retries,
         "retry_delay": config.defaults.retry_delay,
+        "temperature": config.defaults.temperature,
+        "top_p": config.defaults.top_p,
+        "seed": config.defaults.seed,
     }
 
     for key, config_val in defaults_map.items():

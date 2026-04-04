@@ -186,6 +186,7 @@ async def _collect_output(
     api_key: str = "no-key",
     retries: int = 3,
     retry_delay: float = 1.0,
+    sampling_params: Any | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list).
 
@@ -196,13 +197,15 @@ async def _collect_output(
 
     from xpyd_acc.retry import retry_async
 
-    payload = {
+    payload: dict[str, Any] = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
         "logprobs": True,
         "top_logprobs": 5,
     }
+    if sampling_params is not None:
+        payload.update(sampling_params.to_payload())
     headers = {"Authorization": f"Bearer {api_key}"}
 
     async def _do_request() -> tuple[str, list[dict[str, Any]]]:
@@ -234,6 +237,7 @@ async def run_batch(
     retry_delay: float = 1.0,
     on_progress: Callable[[int, int], None] | None = None,
     match_config: Any | None = None,
+    sampling_params: Any | None = None,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -251,11 +255,13 @@ async def run_batch(
                 baseline_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
+                sampling_params=sampling_params,
             )
             target_text, target_lp = await _collect_output(
                 target_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
+                sampling_params=sampling_params,
             )
 
         b_tokens = _tokenize(baseline_text)
