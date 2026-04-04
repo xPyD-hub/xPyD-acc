@@ -204,3 +204,14 @@
 - `-v` and `-q` are mutually exclusive
 - `log.py` module with `setup_logging()` and `get_logger()`
 - Logging integrated into retry, healthcheck, batch_compare, streaming, config
+
+## M29: Watch Mode — Continuous Divergence Monitoring
+- `xpyd-acc watch --baseline <url> --target <url> --prompt <text> --interval <seconds>`
+- Repeatedly runs logprobs comparison at configurable interval (default 60s)
+- Reports each iteration: pass/fail, first divergence index, latency
+- Rich live display with iteration counter and rolling stats
+- `--max-iterations <n>` to stop after N checks (default: unlimited)
+- `--alert-threshold <n>` exits with code 1 after N consecutive failures
+- JSON log file via `--log <path>` for post-hoc analysis
+- Ctrl+C gracefully stops and prints summary
+- Useful for monitoring PD accuracy during long-running deployments
