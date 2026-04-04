@@ -36,6 +36,7 @@ class DefaultsConfig:
     temperature: float | None = None
     top_p: float | None = None
     seed: int | None = None
+    timeout: float = 120.0
 
 
 @dataclass
@@ -163,6 +164,7 @@ def merge_cli_args(config: AppConfig, args: dict[str, Any], command: str) -> dic
         "temperature": config.defaults.temperature,
         "top_p": config.defaults.top_p,
         "seed": config.defaults.seed,
+        "timeout": config.defaults.timeout,
     }
 
     for key, config_val in defaults_map.items():

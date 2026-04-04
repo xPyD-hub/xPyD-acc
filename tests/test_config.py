@@ -169,3 +169,11 @@ class TestMergeCliArgs:
         merged = merge_cli_args(config, args, "compare-logprobs")
         assert merged["baseline"] == "http://x:8000"
         assert merged["model"] == "m"
+
+    def test_timeout_default(self) -> None:
+        config = AppConfig()
+        assert config.defaults.timeout == 120.0
+
+    def test_timeout_from_config(self) -> None:
+        config = AppConfig(defaults=DefaultsConfig(timeout=30.0))
+        assert config.defaults.timeout == 30.0
