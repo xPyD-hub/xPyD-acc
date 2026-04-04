@@ -187,11 +187,15 @@ async def _collect_output(
     retries: int = 3,
     retry_delay: float = 1.0,
     sampling_params: Any | None = None,
+    timeout: float = 120.0,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list).
 
     Returns a tuple of (generated_text, logprobs_per_token).
     Each logprob entry has: {"token": str, "logprob": float, "top_logprobs": [...]}.
+
+    Args:
+        timeout: HTTP request timeout in seconds (default 120.0).
     """
     import httpx
 
@@ -209,7 +213,7 @@ async def _collect_output(
     headers = {"Authorization": f"Bearer {api_key}"}
 
     async def _do_request() -> tuple[str, list[dict[str, Any]]]:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
                 f"{url}/v1/chat/completions", json=payload, headers=headers,
             )
@@ -238,12 +242,14 @@ async def run_batch(
     on_progress: Callable[[int, int], None] | None = None,
     match_config: Any | None = None,
     sampling_params: Any | None = None,
+    timeout: float = 120.0,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
     Args:
         on_progress: Optional callback called after each sample completes.
             Receives (completed_count, total_count).
+        timeout: HTTP request timeout in seconds (default 120.0).
     """
     semaphore = asyncio.Semaphore(concurrency)
     results: list[SampleResult] = []
@@ -255,13 +261,13 @@ async def run_batch(
                 baseline_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
-                sampling_params=sampling_params,
+                sampling_params=sampling_params, timeout=timeout,
             )
             target_text, target_lp = await _collect_output(
                 target_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
-                sampling_params=sampling_params,
+                sampling_params=sampling_params, timeout=timeout,
             )
 
         b_tokens = _tokenize(baseline_text)

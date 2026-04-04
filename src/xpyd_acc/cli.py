@@ -157,6 +157,10 @@ def main(argv: list[str] | None = None) -> None:
         "--rerun-merge", action="store_true", default=False,
         help="Merge rerun results back into the original report file",
     )
+    bc.add_argument(
+        "--timeout", type=float, default=None,
+        help="HTTP request timeout in seconds (default: 120.0)",
+    )
     _add_sampling_args(bc)
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
@@ -293,6 +297,8 @@ def main(argv: list[str] | None = None) -> None:
         args.top_p = env.top_p
     if env.seed is not None and hasattr(args, "seed") and args.seed is None:
         args.seed = env.seed
+    if env.timeout is not None and hasattr(args, "timeout") and args.timeout is None:
+        args.timeout = env.timeout
 
     # Apply hardcoded defaults for any remaining None values
     _FINAL_DEFAULTS: dict[str, object] = {
@@ -308,6 +314,7 @@ def main(argv: list[str] | None = None) -> None:
         "cosine_threshold": 0.999,
         "kv_max_abs_threshold": 1e-3,
         "kv_cosine_threshold": 0.999,
+        "timeout": 120.0,
     }
     for key, default in _FINAL_DEFAULTS.items():
         if hasattr(args, key) and getattr(args, key) is None:
@@ -508,6 +515,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             on_progress=on_progress if use_progress else None,
             match_config=effective_match,
             sampling_params=sampling,
+            timeout=args.timeout,
         )
     finally:
         if progress_ctx is not None:
@@ -628,6 +636,7 @@ async def _run_rerun(args: argparse.Namespace) -> None:
             on_progress=on_progress if use_progress else None,
             match_config=effective_match,
             sampling_params=sampling,
+            timeout=args.timeout,
         )
     finally:
         if progress_ctx is not None:

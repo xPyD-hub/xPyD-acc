@@ -10,6 +10,7 @@ from xpyd_acc.env import (
     ENV_BASELINE_URL,
     ENV_MODEL,
     ENV_TARGET_URL,
+    ENV_TIMEOUT,
     apply_env_defaults,
     get_env_defaults,
 )
@@ -100,3 +101,16 @@ class TestCliEnvIntegration:
             assert defaults.baseline_url == "http://env-baseline:8000"
             assert defaults.target_url == "http://env-target:8000"
             assert defaults.model == "env-model"
+
+    def test_timeout_env_var(self) -> None:
+        """Verify XPYD_ACC_TIMEOUT env var is read correctly."""
+        env = {ENV_TIMEOUT: "30.0"}
+        with patch.dict(os.environ, env, clear=True):
+            defaults = get_env_defaults()
+        assert defaults.timeout == 30.0
+
+    def test_timeout_env_var_not_set(self) -> None:
+        """Verify timeout is None when env var not set."""
+        with patch.dict(os.environ, {}, clear=True):
+            defaults = get_env_defaults()
+        assert defaults.timeout is None

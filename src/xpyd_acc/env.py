@@ -13,6 +13,7 @@ ENV_MODEL = "XPYD_ACC_MODEL"
 ENV_TEMPERATURE = "XPYD_ACC_TEMPERATURE"
 ENV_TOP_P = "XPYD_ACC_TOP_P"
 ENV_SEED = "XPYD_ACC_SEED"
+ENV_TIMEOUT = "XPYD_ACC_TIMEOUT"
 
 
 @dataclass
@@ -26,6 +27,7 @@ class EnvDefaults:
     temperature: float | None = None
     top_p: float | None = None
     seed: int | None = None
+    timeout: float | None = None
 
 
 def get_env_defaults() -> EnvDefaults:
@@ -37,6 +39,7 @@ def get_env_defaults() -> EnvDefaults:
     temp_str = os.environ.get(ENV_TEMPERATURE) or None
     top_p_str = os.environ.get(ENV_TOP_P) or None
     seed_str = os.environ.get(ENV_SEED) or None
+    timeout_str = os.environ.get(ENV_TIMEOUT) or None
 
     return EnvDefaults(
         api_key=os.environ.get(ENV_API_KEY) or None,
@@ -46,6 +49,7 @@ def get_env_defaults() -> EnvDefaults:
         temperature=float(temp_str) if temp_str is not None else None,
         top_p=float(top_p_str) if top_p_str is not None else None,
         seed=int(seed_str) if seed_str is not None else None,
+        timeout=float(timeout_str) if timeout_str is not None else None,
     )
 
 

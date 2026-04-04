@@ -503,3 +503,27 @@ class TestExportMarkdown:
         report = compute_report(results)
         md = export_markdown(report)
         assert "# Batch Comparison Report" in md
+
+
+class TestCollectOutputTimeout:
+    """Test that _collect_output accepts timeout parameter."""
+
+    def test_timeout_parameter_signature(self) -> None:
+        """Verify _collect_output has timeout in its signature."""
+        import inspect
+
+        from xpyd_acc.batch_compare import _collect_output
+
+        sig = inspect.signature(_collect_output)
+        assert "timeout" in sig.parameters
+        assert sig.parameters["timeout"].default == 120.0
+
+    def test_run_batch_timeout_parameter(self) -> None:
+        """Verify run_batch has timeout in its signature."""
+        import inspect
+
+        from xpyd_acc.batch_compare import run_batch
+
+        sig = inspect.signature(run_batch)
+        assert "timeout" in sig.parameters
+        assert sig.parameters["timeout"].default == 120.0
