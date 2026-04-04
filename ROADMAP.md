@@ -117,3 +117,9 @@
 - Built-in templates for common eval formats (GSM8K, MMLU, etc.)
 - CLI flag `--template <path>` for `batch-compare`
 - Template validation and error reporting
+
+## M18: Environment Variable Support ⬜
+- `XPYD_ACC_API_KEY`, `XPYD_ACC_BASELINE_URL`, `XPYD_ACC_TARGET_URL`, `XPYD_ACC_MODEL`
+- Priority chain: CLI flags > env vars > config file > defaults
+- Avoids API keys in shell history
+- `env.py` module with `get_env_defaults()` and `apply_env_defaults()`

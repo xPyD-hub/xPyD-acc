@@ -174,6 +174,20 @@ def main(argv: list[str] | None = None) -> None:
         for key, val in merged.items():
             setattr(args, key, val)
 
+    # Apply environment variable defaults (priority: CLI > env > config > defaults)
+    from xpyd_acc.env import get_env_defaults
+
+    env = get_env_defaults()
+    _ENV_MAPPING: dict[str, str | None] = {
+        "api_key": env.api_key,
+        "baseline": env.baseline_url,
+        "target": env.target_url,
+        "model": env.model,
+    }
+    for key, env_val in _ENV_MAPPING.items():
+        if env_val is not None and hasattr(args, key) and getattr(args, key) is None:
+            setattr(args, key, env_val)
+
     # Apply hardcoded defaults for any remaining None values
     _FINAL_DEFAULTS: dict[str, object] = {
         "model": "default",
