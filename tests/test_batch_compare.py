@@ -165,7 +165,7 @@ class TestExportCsv:
         results = [
             SampleResult(
                 sample_id="s1",
-                prompt="test",
+                prompt="test prompt here",
                 baseline_output="hello",
                 target_output="world",
                 exact_match=False,
@@ -179,9 +179,43 @@ class TestExportCsv:
         ]
         report = compute_report(results)
         csv_str = export_csv(report)
-        assert "sample_id" in csv_str
+        lines = csv_str.strip().splitlines()
+        header = lines[0].rstrip("\r")
+        expected_header = (
+            "sample_id,prompt,baseline_output,target_output,"
+            "match,divergence_index,logprob_gap"
+        )
+        assert header == expected_header
         assert "s1" in csv_str
-        assert "likely_bug" in csv_str
+        assert "test prompt here" in csv_str
+        assert "0.300000" in csv_str
+
+    def test_csv_prompt_truncation(self) -> None:
+        long_prompt = "a" * 300
+        results = [
+            SampleResult(
+                sample_id="s1",
+                prompt=long_prompt,
+                baseline_output="x",
+                target_output="y",
+                exact_match=False,
+                first_divergence_index=0,
+                baseline_logprob_at_divergence=None,
+                target_logprob_at_divergence=None,
+                logprob_gap=None,
+                classification="unknown",
+                context_length=10,
+            ),
+        ]
+        report = compute_report(results)
+        csv_str = export_csv(report)
+        # Default truncation to 200 chars
+        assert long_prompt not in csv_str
+        assert "a" * 197 + "..." in csv_str
+
+        # No truncation
+        csv_str_full = export_csv(report, prompt_max_length=0)
+        assert long_prompt in csv_str_full
 
     def test_csv_to_file(self, tmp_path: Path) -> None:
         results = [
@@ -205,6 +239,7 @@ class TestExportCsv:
         assert out.exists()
         content = out.read_text()
         assert "s1" in content
+        assert "prompt" in content
 
 
 class TestFormatReport:
