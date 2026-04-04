@@ -63,6 +63,40 @@ class BatchReport:
     # Divergence by context length buckets
     divergence_by_context_length: dict[str, dict[str, int]] = field(default_factory=dict)
 
+    def to_json(self) -> str:
+        """Serialize the report to a JSON string."""
+        data: dict[str, Any] = {
+            "total_samples": self.total_samples,
+            "divergent_samples": self.divergent_samples,
+            "match_samples": self.match_samples,
+            "divergence_rate": self.divergence_rate,
+            "divergence_index_mean": self.divergence_index_mean,
+            "divergence_index_median": self.divergence_index_median,
+            "logprob_gap_mean": self.logprob_gap_mean,
+            "logprob_gap_median": self.logprob_gap_median,
+            "likely_bugs": self.likely_bugs,
+            "likely_uncertainty": self.likely_uncertainty,
+            "unknown_classification": self.unknown_classification,
+            "divergence_by_context_length": self.divergence_by_context_length,
+            "results": [
+                {
+                    "sample_id": r.sample_id,
+                    "prompt": r.prompt,
+                    "baseline_output": r.baseline_output,
+                    "target_output": r.target_output,
+                    "exact_match": r.exact_match,
+                    "first_divergence_index": r.first_divergence_index,
+                    "baseline_logprob_at_divergence": r.baseline_logprob_at_divergence,
+                    "target_logprob_at_divergence": r.target_logprob_at_divergence,
+                    "logprob_gap": r.logprob_gap,
+                    "classification": r.classification,
+                    "context_length": r.context_length,
+                }
+                for r in self.results
+            ],
+        }
+        return json.dumps(data, indent=2)
+
 
 def load_dataset(path: str | Path) -> list[DatasetSample]:
     """Load dataset from JSONL file.

@@ -18,6 +18,13 @@ def test_help():
     assert result.returncode == 0
 
 
+def test_version_flag():
+    """Test that --version prints version and exits."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--version"])
+    assert exc_info.value.code == 0
+
+
 class TestCliConfigIntegration:
     """Tests for --config flag and auto-discovery in CLI."""
 

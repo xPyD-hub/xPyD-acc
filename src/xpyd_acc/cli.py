@@ -7,10 +7,23 @@ import asyncio
 import sys
 
 
+def _get_version() -> str:
+    """Return the package version."""
+    try:
+        from importlib.metadata import version
+        return version("xpyd-acc")
+    except Exception:
+        return "unknown"
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="xpyd-acc",
         description="PD disaggregation accuracy diagnostic tool",
+    )
+    parser.add_argument(
+        "-V", "--version", action="version",
+        version=f"%(prog)s {_get_version()}",
     )
     parser.add_argument(
         "--config", default=None,
@@ -69,6 +82,7 @@ def main(argv: list[str] | None = None) -> None:
         help="Logprob gap threshold for bug vs uncertainty (default: 0.1)",
     )
     bc.add_argument("--csv", default=None, help="Path to export CSV results")
+    bc.add_argument("--json", default=None, dest="json_path", help="Path to export JSON results")
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -170,6 +184,11 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
     if args.csv:
         export_csv(report, args.csv)
         print(f"\nCSV exported to {args.csv}")
+
+    if args.json_path:
+        from pathlib import Path
+        Path(args.json_path).write_text(report.to_json())
+        print(f"\nJSON exported to {args.json_path}")
 
     if report.divergent_samples > 0:
         sys.exit(1)
