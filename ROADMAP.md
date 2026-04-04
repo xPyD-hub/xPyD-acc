@@ -146,7 +146,7 @@
 - JSON export for regression reports
 - Rich terminal output with clear pass/fail indicators
 
-## M22: Tolerance-Based Matching for Batch Comparison
+## M22: Tolerance-Based Matching for Batch Comparison ✅
 - `--normalize-whitespace` flag: collapse/strip whitespace before comparison
 - `--ignore-case` flag: case-insensitive text matching
 - `--numeric-tolerance <float>` flag: treat numbers within tolerance as equal
@@ -155,3 +155,11 @@
 - Integrated into `batch-compare` and `compare-streaming` commands
 - TOML config section `[matching]` for default tolerance settings
 - Tests for all tolerance modes and combinations
+
+## M23: Selective Sample Rerun
+- `batch-compare --rerun <report.json>` reruns only divergent samples from a previous run
+- Filters to samples where `match == false` in the input report
+- Outputs a new report containing only rerun results
+- Merge mode: `--rerun-merge` combines rerun results back into the original report
+- Useful for quick retesting after fixes without rerunning the full dataset
+- Exit code reflects rerun results (0 = all match, 1 = still divergent)
