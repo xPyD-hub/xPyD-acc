@@ -555,6 +555,237 @@ def _to_markdown(report: BatchReport, *, max_divergent_samples: int = 10) -> str
     return "\n".join(lines)
 
 
+@dataclass
+class MultiTargetBatchReport:
+    """Report comparing one baseline against multiple targets."""
+
+    baseline_url: str
+    target_urls: list[str]
+    per_target: dict[str, BatchReport]
+    agreement_matrix: dict[str, dict[str, float]]  # target_url -> target_url -> agreement rate
+    total_samples: int
+
+    def to_json(self) -> str:
+        """Serialize to JSON string."""
+        data: dict[str, Any] = {
+            "baseline_url": self.baseline_url,
+            "target_urls": self.target_urls,
+            "total_samples": self.total_samples,
+            "per_target": {
+                url: json.loads(report.to_json())
+                for url, report in self.per_target.items()
+            },
+            "agreement_matrix": self.agreement_matrix,
+        }
+        return json.dumps(data, indent=2)
+
+    def to_markdown(self, *, max_divergent_samples: int = 10) -> str:
+        """Serialize to Markdown string."""
+        lines: list[str] = []
+        lines.append("# Multi-Target Batch Comparison Report")
+        lines.append("")
+        lines.append(f"**Baseline:** `{self.baseline_url}`")
+        lines.append(f"**Targets:** {len(self.target_urls)}")
+        lines.append(f"**Total samples:** {self.total_samples}")
+        lines.append("")
+
+        # Per-target summary
+        lines.append("## Per-Target Summary")
+        lines.append("")
+        lines.append("| Target | Matches | Divergent | Rate |")
+        lines.append("|--------|---------|-----------|------|")
+        for url in self.target_urls:
+            r = self.per_target[url]
+            lines.append(
+                f"| `{url}` | {r.match_samples} | {r.divergent_samples} "
+                f"| {r.divergence_rate:.1%} |"
+            )
+        lines.append("")
+
+        # Agreement matrix
+        if len(self.target_urls) > 1:
+            lines.append("## Cross-Target Agreement Matrix")
+            lines.append("")
+            header = "| |" + " | ".join(f"`{u}`" for u in self.target_urls) + " |"
+            sep = "|--|" + " | ".join("---" for _ in self.target_urls) + " |"
+            lines.append(header)
+            lines.append(sep)
+            for u1 in self.target_urls:
+                row = f"| `{u1}` |"
+                for u2 in self.target_urls:
+                    val = self.agreement_matrix.get(u1, {}).get(u2, 0.0)
+                    row += f" {val:.1%} |"
+                lines.append(row)
+            lines.append("")
+
+        # Per-target detail
+        for url in self.target_urls:
+            lines.append(f"## Target: `{url}`")
+            lines.append("")
+            lines.append(
+                self.per_target[url].to_markdown(
+                    max_divergent_samples=max_divergent_samples,
+                )
+            )
+            lines.append("")
+
+        return "\n".join(lines)
+
+
+def _compute_agreement_matrix(
+    target_urls: list[str],
+    per_target: dict[str, BatchReport],
+) -> dict[str, dict[str, float]]:
+    """Compute pairwise agreement rates between targets.
+
+    Agreement = fraction of samples where both targets produce same output.
+    """
+    matrix: dict[str, dict[str, float]] = {}
+    for u1 in target_urls:
+        matrix[u1] = {}
+        r1 = per_target[u1]
+        outputs1 = {r.sample_id: r.target_output for r in r1.results}
+        for u2 in target_urls:
+            if u1 == u2:
+                matrix[u1][u2] = 1.0
+                continue
+            r2 = per_target[u2]
+            outputs2 = {r.sample_id: r.target_output for r in r2.results}
+            total = len(outputs1)
+            if total == 0:
+                matrix[u1][u2] = 0.0
+                continue
+            agree = sum(
+                1 for sid in outputs1 if outputs1[sid] == outputs2.get(sid)
+            )
+            matrix[u1][u2] = agree / total
+    return matrix
+
+
+async def run_multi_batch(
+    samples: list[DatasetSample],
+    baseline_url: str,
+    target_urls: list[str],
+    *,
+    model: str = "default",
+    max_tokens: int = 64,
+    api_key: str = "no-key",
+    logprob_gap_threshold: float = 0.1,
+    concurrency: int = 5,
+    retries: int = 3,
+    retry_delay: float = 1.0,
+    on_progress: Callable[[int, int], None] | None = None,
+    match_config: Any | None = None,
+    sampling_params: Any | None = None,
+    timeout: float = 120.0,
+) -> MultiTargetBatchReport:
+    """Run batch comparison of one baseline against multiple targets.
+
+    Collects baseline outputs once, then compares against each target.
+    """
+    logger.info(
+        "Starting multi-target batch: %d samples, %d targets, concurrency=%d",
+        len(samples), len(target_urls), concurrency,
+    )
+    semaphore = asyncio.Semaphore(concurrency)
+
+    # Step 1: Collect baseline outputs for all samples
+    async def collect_baseline(sample: DatasetSample) -> tuple[str, str, list[dict[str, Any]]]:
+        async with semaphore:
+            text, lp = await _collect_output(
+                baseline_url, sample.prompt, model=model,
+                max_tokens=max_tokens, api_key=api_key,
+                retries=retries, retry_delay=retry_delay,
+                sampling_params=sampling_params, timeout=timeout,
+            )
+        return sample.id, text, lp
+
+    baseline_tasks = [collect_baseline(s) for s in samples]
+    baseline_results_raw = await asyncio.gather(*baseline_tasks)
+    baseline_outputs: dict[str, tuple[str, list[dict[str, Any]]]] = {
+        sid: (text, lp) for sid, text, lp in baseline_results_raw
+    }
+
+    # Step 2: For each target, collect outputs and build SampleResults
+    total_work = len(target_urls) * len(samples)
+    completed = 0
+
+    async def collect_target_sample(
+        target_url: str, sample: DatasetSample,
+    ) -> SampleResult:
+        nonlocal completed
+        async with semaphore:
+            target_text, target_lp = await _collect_output(
+                target_url, sample.prompt, model=model,
+                max_tokens=max_tokens, api_key=api_key,
+                retries=retries, retry_delay=retry_delay,
+                sampling_params=sampling_params, timeout=timeout,
+            )
+
+        baseline_text, baseline_lp = baseline_outputs[sample.id]
+        b_tokens = _tokenize(baseline_text)
+        t_tokens = _tokenize(target_text)
+
+        from xpyd_acc.output_compare import normalized_match
+
+        exact = normalized_match(baseline_text, target_text, match_config)
+        div_idx = _find_first_divergence(b_tokens, t_tokens)
+
+        b_lp_at_div: float | None = None
+        t_lp_at_div: float | None = None
+        gap: float | None = None
+
+        if div_idx is not None and div_idx < len(target_lp):
+            lp_entry = target_lp[div_idx]
+            t_lp_at_div = lp_entry.get("logprob")
+            top_lps = lp_entry.get("top_logprobs", [])
+            if len(top_lps) >= 2:
+                gap = abs(top_lps[0].get("logprob", 0) - top_lps[1].get("logprob", 0))
+        if div_idx is not None and div_idx < len(baseline_lp):
+            b_lp_at_div = baseline_lp[div_idx].get("logprob")
+
+        classification = "match" if exact else classify_divergence(
+            gap, threshold=logprob_gap_threshold,
+        )
+        ctx_len = len(_tokenize(sample.prompt))
+
+        completed += 1
+        if on_progress is not None:
+            on_progress(completed, total_work)
+
+        return SampleResult(
+            sample_id=sample.id,
+            prompt=sample.prompt,
+            baseline_output=baseline_text,
+            target_output=target_text,
+            exact_match=exact,
+            first_divergence_index=div_idx,
+            baseline_logprob_at_divergence=b_lp_at_div,
+            target_logprob_at_divergence=t_lp_at_div,
+            logprob_gap=gap,
+            classification=classification,
+            context_length=ctx_len,
+        )
+
+    per_target: dict[str, BatchReport] = {}
+    for target_url in target_urls:
+        tasks = [collect_target_sample(target_url, s) for s in samples]
+        results = list(await asyncio.gather(*tasks))
+        per_target[target_url] = compute_report(
+            results, logprob_gap_threshold=logprob_gap_threshold,
+        )
+
+    agreement_matrix = _compute_agreement_matrix(target_urls, per_target)
+
+    return MultiTargetBatchReport(
+        baseline_url=baseline_url,
+        target_urls=target_urls,
+        per_target=per_target,
+        agreement_matrix=agreement_matrix,
+        total_samples=len(samples),
+    )
+
+
 def export_markdown(
     report: BatchReport,
     path: str | Path | None = None,
