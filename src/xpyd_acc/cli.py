@@ -111,6 +111,10 @@ def main(argv: list[str] | None = None) -> None:
         "--template", default=None,
         help="Prompt template: built-in name (gsm8k, mmlu, etc.) or path to YAML/TOML file",
     )
+    bc.add_argument(
+        "--dry-run", action="store_true", default=False,
+        help="Validate setup without sending API requests",
+    )
 
     rp = sub.add_parser("report", help="Generate HTML report from batch comparison JSON")
     rp.add_argument("--input", required=True, help="Path to batch results JSON file")
@@ -258,6 +262,31 @@ async def _run_healthcheck(args: argparse.Namespace) -> None:
 
 async def _run_batch_compare(args: argparse.Namespace) -> None:
     """Run batch dataset comparison."""
+    # Handle dry run mode
+    if getattr(args, "dry_run", False):
+        from xpyd_acc.dry_run import format_dry_run, run_dry_run
+
+        result = await run_dry_run(
+            args.dataset,
+            args.baseline,
+            args.target,
+            template=args.template,
+            skip_healthcheck=args.skip_healthcheck,
+            model=args.model,
+            max_tokens=args.max_tokens,
+            api_key=args.api_key,
+            concurrency=args.concurrency,
+            retries=args.retries,
+            retry_delay=args.retry_delay,
+        )
+        print(format_dry_run(result))
+        if getattr(args, "json_path", None):
+            from pathlib import Path
+
+            Path(args.json_path).write_text(result.to_json())
+            print(f"\nDry run report exported to {args.json_path}")
+        sys.exit(0 if result.valid else 1)
+
     from xpyd_acc.batch_compare import (
         export_csv,
         export_markdown,
