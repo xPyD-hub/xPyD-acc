@@ -23,7 +23,7 @@
 - Rich terminal output with ✅/❌ per step
 - JSON report export
 
-## M5: Output Comparison Utilities ⬜
+## M5: Output Comparison Utilities ✅
 - Full text comparison (exact match, edit distance)
 - Token-level diff visualization
 - Semantic similarity score (optional, if embeddings available)
