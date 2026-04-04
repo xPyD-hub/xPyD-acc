@@ -93,3 +93,20 @@
 - Compare SSE streaming responses token-by-token
 - Real-time divergence detection during streaming
 - CLI subcommand `compare-streaming` with `--baseline`, `--target`, `--prompt`
+
+## M14: Endpoint Health Check
+- Pre-flight check: verify both endpoints are reachable before running comparisons
+- `xpyd-acc healthcheck <url>` CLI subcommand
+- Reports: connectivity, response time, model availability
+- Auto-check before `batch-compare` and `compare-streaming` with `--skip-healthcheck` opt-out
+
+## M15: CSV Export for Batch Results
+- `batch-compare --csv <path>` exports per-sample results to CSV
+- Columns: sample_id, prompt (truncated), baseline_output, target_output, match, divergence_index, logprob_gap
+- Useful for spreadsheet analysis and filtering
+
+## M16: Token Timing Analysis
+- Measure TTFT (time to first token) for both endpoints
+- Inter-token latency statistics (p50, p95, p99)
+- Timing comparison report between baseline and target
+- Integrated into `compare-streaming` output
