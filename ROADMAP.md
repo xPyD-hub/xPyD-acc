@@ -582,3 +582,16 @@
 - CLI flags `--checkpoint` and `--checkpoint-clear` wired through to `run_batch()`
 - Results maintained in original sample order regardless of resume
 - 12 tests covering resume, skip, mismatch discard, clear, cleanup, ordering
+
+## M66: Retry Statistics Reporting ✅
+- `retry_async()` returns `RetryResult(value, attempts)` instead of bare value
+- `RetryStats` dataclass: total_requests, total_retries, max_retries_single, retried_request_count
+- `RetryStats.record(result)` aggregates individual `RetryResult` instances
+- `RetryStats.to_dict()` / `from_dict()` for serialization round-trip
+- `BatchReport.retry_stats` field (optional, backward compatible)
+- `format_report()` shows retry summary when retries occurred
+- `to_json()` / `to_markdown()` include retry stats
+- `load_report()` round-trips retry stats; old reports without field load fine
+- All callers updated: batch_compare, logprobs, notify, reproducibility
+- Fixed pre-existing bug: reproducibility.py used retry_async as decorator
+- 25 tests: RetryResult, RetryStats aggregation, serialization, report integration, format, round-trip

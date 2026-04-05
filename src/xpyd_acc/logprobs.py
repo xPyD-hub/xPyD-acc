@@ -92,7 +92,8 @@ class LogprobsCollector:
                 resp.raise_for_status()
                 return resp.json()
 
-        data = await retry_async(_do_request, retries=retries, base_delay=retry_delay)
+        result = await retry_async(_do_request, retries=retries, base_delay=retry_delay)
+        data = result.value
         if not skip_validation:
             validate_chat_response(data, require_logprobs=True)
         return self._parse_response(data)

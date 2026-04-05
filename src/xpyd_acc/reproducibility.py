@@ -139,7 +139,6 @@ async def _collect_outputs(
         if seed is not None:
             body["seed"] = seed
 
-        @retry_async(retries=retries, base_delay=retry_delay)
         async def _do_request() -> str:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(
@@ -151,7 +150,8 @@ async def _collect_outputs(
                 data = resp.json()
                 return data["choices"][0]["message"]["content"]
 
-        return await _do_request()
+        result = await retry_async(_do_request, retries=retries, base_delay=retry_delay)
+        return result.value
 
     tasks = [_single_request() for _ in range(runs)]
     outputs = await asyncio.gather(*tasks)

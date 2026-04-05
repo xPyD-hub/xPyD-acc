@@ -15,6 +15,7 @@ from typing import Any, Callable
 from xpyd_acc.cost import TokenUsage, UsageSummary, extract_usage, format_usage_summary
 from xpyd_acc.log import get_logger
 from xpyd_acc.response_validate import validate_chat_response
+from xpyd_acc.retry import RetryResult, RetryStats
 
 logger = get_logger("batch_compare")
 
@@ -84,6 +85,8 @@ class BatchReport:
     usage: UsageSummary | None = None
     # Truncation tracking
     truncated_count: int = 0
+    # Retry statistics
+    retry_stats: RetryStats | None = None
 
     def to_markdown(self, *, max_divergent_samples: int = 10) -> str:
         """Serialize the report to a Markdown string."""
@@ -110,6 +113,7 @@ class BatchReport:
             "confidence_level": self.confidence_level,
             "truncated_count": self.truncated_count,
             "usage": self.usage.to_dict() if self.usage is not None else None,
+            "retry_stats": self.retry_stats.to_dict() if self.retry_stats is not None else None,
             "results": [
                 {
                     "sample_id": r.sample_id,
@@ -204,6 +208,7 @@ def load_report(path: str | Path) -> BatchReport:
         confidence_level=data.get("confidence_level"),
         usage=usage,
         truncated_count=data.get("truncated_count", 0),
+        retry_stats=RetryStats.from_dict(data["retry_stats"]) if data.get("retry_stats") else None,
     )
 
 
@@ -373,7 +378,7 @@ async def _collect_output(
     if cache is not None:
         entry = cache.get(url, model, prompt, sp_dict)
         if entry is not None:
-            return entry.text, entry.logprobs, entry.request_id, TokenUsage(), None
+            return entry.text, entry.logprobs, entry.request_id, TokenUsage(), None, 1
 
     payload: dict[str, Any] = {
         "model": model,
@@ -406,15 +411,16 @@ async def _collect_output(
         finish_reason = choice.get("finish_reason")
         return text, logprobs_content, rid, usage, finish_reason
 
-    text, logprobs_list, out_rid, usage, finish_reason = await retry_async(
+    retry_result = await retry_async(
         _do_request, retries=retries, base_delay=retry_delay,
     )
+    text, logprobs_list, out_rid, usage, finish_reason = retry_result.value
 
     # Store in cache
     if cache is not None:
         cache.put(url, model, prompt, text, logprobs_list, out_rid, sp_dict)
 
-    return text, logprobs_list, out_rid, usage, finish_reason
+    return text, logprobs_list, out_rid, usage, finish_reason, retry_result.attempts
 
 
 async def run_batch(
@@ -533,7 +539,10 @@ async def run_batch(
         async with semaphore:
             if rate_limiter is not None:
                 await rate_limiter.acquire()
-            baseline_text, baseline_lp, b_rid_out, b_usage, b_finish = await _collect_output(
+            (
+                baseline_text, baseline_lp, b_rid_out,
+                b_usage, b_finish, b_attempts,
+            ) = await _collect_output(
                 baseline_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
@@ -544,7 +553,10 @@ async def run_batch(
             )
             if rate_limiter is not None:
                 await rate_limiter.acquire()
-            target_text, target_lp, t_rid_out, t_usage, t_finish = await _collect_output(
+            (
+                target_text, target_lp, t_rid_out,
+                t_usage, t_finish, t_attempts,
+            ) = await _collect_output(
                 target_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
@@ -558,6 +570,7 @@ async def run_batch(
             target_text, target_lp, t_rid_out,
             b_usage, t_usage,
             b_finish, t_finish,
+            b_attempts, t_attempts,
         )
 
     def _build_result(
@@ -632,12 +645,19 @@ async def run_batch(
         # Send unique prompts only, then fan out results
         total = len(unique_prompts)
         usage_summary = UsageSummary()
+        retry_stats_dedup = RetryStats()
 
         async def _tracked_unique(prompt: str) -> _PairResult:
             nonlocal completed
             result = await _collect_pair(prompt)
             usage_summary.add(result[6])  # baseline usage
             usage_summary.add(result[7])  # target usage
+            retry_stats_dedup.record(
+                RetryResult(value=None, attempts=result[10]),
+            )  # baseline
+            retry_stats_dedup.record(
+                RetryResult(value=None, attempts=result[11]),
+            )  # target
             completed += 1
             if on_progress is not None:
                 on_progress(completed, total)
@@ -654,7 +674,10 @@ async def run_batch(
         # Build results in original sample order
         all_results: list[SampleResult] = []
         for sample in samples:
-            bt, blp, brid, tt, tlp, trid, _bu, _tu, bfin, tfin = prompt_to_pair[sample.prompt]
+            (
+                bt, blp, brid, tt, tlp, trid,
+                _bu, _tu, bfin, tfin, _ba, _ta,
+            ) = prompt_to_pair[sample.prompt]
             all_results.append(_build_result(
                 sample, bt, blp, brid, tt, tlp, trid,
                 baseline_finish_reason=bfin, target_finish_reason=tfin,
@@ -663,15 +686,18 @@ async def run_batch(
 
         report = compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
         report.usage = usage_summary
+        report.retry_stats = retry_stats_dedup
         return report
 
-    async def process_sample(sample: DatasetSample) -> tuple[SampleResult, TokenUsage, TokenUsage]:
+    async def process_sample(
+        sample: DatasetSample,
+    ) -> tuple[SampleResult, TokenUsage, TokenUsage, int, int]:
         pair = await _collect_pair(sample.prompt)
-        bt, blp, brid, tt, tlp, trid, b_usage, t_usage, b_fin, t_fin = pair
+        bt, blp, brid, tt, tlp, trid, b_usage, t_usage, b_fin, t_fin, b_att, t_att = pair
         return _build_result(
             sample, bt, blp, brid, tt, tlp, trid,
             baseline_finish_reason=b_fin, target_finish_reason=t_fin,
-        ), b_usage, t_usage
+        ), b_usage, t_usage, b_att, t_att
 
     total = len(samples)
     usage_summary = UsageSummary()
@@ -685,7 +711,9 @@ async def run_batch(
         )
         completed = len(resumed_results)
 
-    async def _tracked_sample(sample: DatasetSample) -> tuple[SampleResult, TokenUsage, TokenUsage]:
+    async def _tracked_sample(
+        sample: DatasetSample,
+    ) -> tuple[SampleResult, TokenUsage, TokenUsage, int, int]:
         nonlocal completed
         result_tuple = await process_sample(sample)
         completed += 1
@@ -707,11 +735,14 @@ async def run_batch(
             results.append(resumed_results[s.id])
         # pending results added below in order
     # Now add freshly computed results
+    retry_stats = RetryStats()
     pending_results = []
-    for sr, b_u, t_u in raw_results:
+    for sr, b_u, t_u, b_att, t_att in raw_results:
         pending_results.append(sr)
         usage_summary.add(b_u)
         usage_summary.add(t_u)
+        retry_stats.record(RetryResult(value=None, attempts=b_att))
+        retry_stats.record(RetryResult(value=None, attempts=t_att))
 
     # Rebuild results in original sample order
     pending_map = {sr.sample_id: sr for sr in pending_results}
@@ -731,6 +762,7 @@ async def run_batch(
 
     report = compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
     report.usage = usage_summary
+    report.retry_stats = retry_stats
     return report
 
 
@@ -898,6 +930,15 @@ def format_report(report: BatchReport) -> str:
         lines.append("")
         lines.append(format_usage_summary(report.usage))
 
+    if report.retry_stats is not None and report.retry_stats.total_retries > 0:
+        rs = report.retry_stats
+        lines.append("")
+        lines.append("--- Retry Statistics ---")
+        lines.append(f"  Total requests:     {rs.total_requests}")
+        lines.append(f"  Retried requests:   {rs.retried_request_count}")
+        lines.append(f"  Total retries:      {rs.total_retries}")
+        lines.append(f"  Max retries (single): {rs.max_retries_single}")
+
     return "\n".join(lines)
 
 
@@ -1004,6 +1045,18 @@ def _to_markdown(report: BatchReport, *, max_divergent_samples: int = 10) -> str
         lines.append(f"| Total tokens | {report.usage.total_tokens:,} |")
         if report.usage.estimated_cost_usd is not None:
             lines.append(f"| Estimated cost | ${report.usage.estimated_cost_usd:.4f} |")
+        lines.append("")
+
+    if report.retry_stats is not None and report.retry_stats.total_retries > 0:
+        rs = report.retry_stats
+        lines.append("## Retry Statistics")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(f"| Total requests | {rs.total_requests} |")
+        lines.append(f"| Retried requests | {rs.retried_request_count} |")
+        lines.append(f"| Total retries | {rs.total_retries} |")
+        lines.append(f"| Max retries (single) | {rs.max_retries_single} |")
         lines.append("")
 
     return "\n".join(lines)
@@ -1151,7 +1204,7 @@ async def run_multi_batch(
 
     async def collect_baseline(sample: DatasetSample) -> tuple[str, str, list[dict[str, Any]]]:
         async with semaphore:
-            text, lp, _rid, b_usage, _finish = await _collect_output(
+            text, lp, _rid, b_usage, _finish, _att = await _collect_output(
                 baseline_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
@@ -1176,7 +1229,7 @@ async def run_multi_batch(
     ) -> SampleResult:
         nonlocal completed
         async with semaphore:
-            target_text, target_lp, _rid, t_usage, _t_finish = await _collect_output(
+            target_text, target_lp, _rid, t_usage, _t_finish, _t_att = await _collect_output(
                 target_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
