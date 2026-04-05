@@ -1,41 +1,39 @@
-# Current Iteration — M72
+# Current Iteration — M73
 
 ## Milestone
 
-**M72** — Feature-complete diagnostic toolkit with batch analysis, reporting, and CI integration support.
+**M73** — Multi-Model Comparison in Single Batch Run
 
-## Main Features
+## What Was Done
 
-- **Full diagnostic pipeline** (`diagnose`) — automated healthcheck → compare → report flow
-- **Output comparison** — text-level and logprob-level comparison between aggregated and PD endpoints
-- **KV cache analysis** — direct numerical comparison of KV cache tensors (`.npz`)
-- **Batch comparison** — dataset-driven testing with JSONL input
-- **HTML reporting** — rich report generation from batch results
-- **Streaming comparison** — SSE token-by-token diff
-- **Entropy & length-bias analysis** — statistical detection of distribution shifts
-- **Prompt sensitivity analysis** — measure divergence stability under prompt perturbations
-- **Regression detection** — compare two batch runs to catch accuracy regressions
-- **Bisect** — binary search for minimum context length triggering divergence
-- **Fingerprinting & reproducibility** — model identity verification and multi-run consistency
-- **History & trends** — save, list, and trend divergence rates over time
-- **Caching** — response cache to avoid redundant API calls during iteration
-- **Configuration** — TOML-based config with validation, profiles, and `init` scaffolding
-- **Shell completion** — auto-generated completions for bash/zsh/fish
+Added `multi_model.py` module enabling `batch-compare` to accept multiple `--model` flags
+and run the same dataset against each model, producing a `MultiModelBatchReport` with:
 
-## Known Limitations
+- Per-model `BatchReport` (reuses existing `run_batch()`)
+- Cross-model analysis: systematic divergences (all models), model-specific, all-match
+- JSON and Markdown export with per-model breakdowns
+- Terminal formatting with per-model pass/fail indicators
 
-- No native support for multi-model comparison (single model per run)
-- KV cache dump (`.npz`) must be obtained externally; xPyD-acc does not trigger dumps itself
-- HTML report does not support real-time / streaming updates
-- `watch` mode does not persist state across restarts
-- No built-in authentication beyond API key pass-through
-- Dataset format limited to JSONL (no CSV or Parquet support yet)
+### Files Changed
 
-## Next Steps
+- **`src/xpyd_acc/multi_model.py`** (new): `MultiModelBatchReport`, `CrossModelSummary`,
+  `compute_cross_model_summary()`, `format_multi_model_report()`, `run_multi_model()`
+- **`src/xpyd_acc/cli.py`**: `--model` changed to `action="append"` for repeatable flag;
+  multi-model branch added in `_run_batch_compare()` with JSON/Markdown export and exit code
+- **`tests/test_multi_model.py`** (new): 15 tests covering dataclasses, cross-model summary,
+  report serialization, formatting, and async `run_multi_model()` with mocked `run_batch`
 
-- Add Parquet / CSV dataset support
-- Native KV dump triggering via xPyD control plane API
-- Interactive HTML report with filtering and drill-down
-- CI/CD integration examples (GitHub Actions, GitLab CI)
-- Multi-model and multi-version comparison in a single run
-- Prometheus / OpenTelemetry metrics export for `watch` mode
+### Tests
+
+15 tests all passing:
+- `CrossModelSummary` serialization
+- `compute_cross_model_summary` for all-match, systematic, model-specific, empty, single-model
+- `MultiModelBatchReport` JSON round-trip, Markdown generation
+- `format_multi_model_report` terminal output
+- `run_multi_model` with callback, backward compat, parameter forwarding, mixed results
+
+## Iteration History
+
+| # | Date | Task | Result | Reviewer Comments |
+|---|------|------|--------|-------------------|
+| 1 | 2026-04-06 | M73: Multi-Model Comparison | ⏳ pending review | — |

@@ -669,3 +669,13 @@
 - Sampling params support (--temperature, --top-p, --seed, --profile)
 - `sensitivity.py` module: `generate_perturbations()`, `run_sensitivity()`, `SensitivityResult`, `format_sensitivity()`
 - 22 tests covering perturbation generation, classification, analysis, formatting, JSON export, CLI integration
+
+## M73: Multi-Model Comparison in Single Batch Run
+- `batch-compare --model m1 --model m2 --baseline ... --target ... --dataset ...`
+- Run same dataset against each model via existing `run_batch()`
+- `MultiModelBatchReport` with per-model `BatchReport` and `CrossModelSummary`
+- Cross-model analysis: systematic (all models diverge), model-specific, all-match
+- JSON and Markdown export with per-model breakdowns
+- Terminal formatting with per-model pass/fail indicators
+- `multi_model.py` module: `run_multi_model()`, `compute_cross_model_summary()`, `format_multi_model_report()`
+- 15 tests covering dataclasses, cross-model summary, serialization, async runs
