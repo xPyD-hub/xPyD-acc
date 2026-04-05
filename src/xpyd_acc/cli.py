@@ -191,6 +191,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Send each unique prompt only once per endpoint, reuse results for duplicates",
     )
     bc.add_argument(
+        "--normalizer", action="append", default=None, dest="normalizers",
+        help="Output normalizer (repeatable). Built-in: strip_thinking_tags, "
+             "normalize_json, normalize_numbers. Or module:function for custom.",
+    )
+    bc.add_argument(
         "--rate-limit", type=float, default=None,
         help="Max requests per second to each endpoint",
     )
@@ -849,6 +854,13 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             or match_config.numeric_tolerance is not None
         ) else None
 
+        # Resolve output normalizers
+        normalizer_specs = getattr(args, "normalizers", None) or []
+        resolved_normalizers = None
+        if normalizer_specs:
+            from xpyd_acc.normalizers import resolve_normalizers
+            resolved_normalizers = resolve_normalizers(normalizer_specs)
+
         # Set up response cache
         batch_cache = None
         if not getattr(args, "no_cache", False):
@@ -901,6 +913,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 enable_request_ids=not getattr(args, "no_request_id", False),
                 cache=batch_cache,
                 rate_limiter=_rl,
+                normalizers=resolved_normalizers,
             )
     finally:
         if progress_ctx is not None:
