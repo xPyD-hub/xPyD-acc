@@ -41,6 +41,7 @@ class DefaultsConfig:
     top_p: float | None = None
     seed: int | None = None
     timeout: float = 120.0
+    rate_limit: float | None = None
 
 
 @dataclass
@@ -175,6 +176,7 @@ def merge_cli_args(config: AppConfig, args: dict[str, Any], command: str) -> dic
         "top_p": config.defaults.top_p,
         "seed": config.defaults.seed,
         "timeout": config.defaults.timeout,
+        "rate_limit": config.defaults.rate_limit,
     }
 
     for key, config_val in defaults_map.items():

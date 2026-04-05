@@ -14,6 +14,7 @@ ENV_TEMPERATURE = "XPYD_ACC_TEMPERATURE"
 ENV_TOP_P = "XPYD_ACC_TOP_P"
 ENV_SEED = "XPYD_ACC_SEED"
 ENV_TIMEOUT = "XPYD_ACC_TIMEOUT"
+ENV_RATE_LIMIT = "XPYD_ACC_RATE_LIMIT"
 
 
 @dataclass
@@ -28,6 +29,7 @@ class EnvDefaults:
     top_p: float | None = None
     seed: int | None = None
     timeout: float | None = None
+    rate_limit: float | None = None
 
 
 def get_env_defaults() -> EnvDefaults:
@@ -40,6 +42,7 @@ def get_env_defaults() -> EnvDefaults:
     top_p_str = os.environ.get(ENV_TOP_P) or None
     seed_str = os.environ.get(ENV_SEED) or None
     timeout_str = os.environ.get(ENV_TIMEOUT) or None
+    rate_limit_str = os.environ.get(ENV_RATE_LIMIT) or None
 
     return EnvDefaults(
         api_key=os.environ.get(ENV_API_KEY) or None,
@@ -50,6 +53,7 @@ def get_env_defaults() -> EnvDefaults:
         top_p=float(top_p_str) if top_p_str is not None else None,
         seed=int(seed_str) if seed_str is not None else None,
         timeout=float(timeout_str) if timeout_str is not None else None,
+        rate_limit=float(rate_limit_str) if rate_limit_str is not None else None,
     )
 
 

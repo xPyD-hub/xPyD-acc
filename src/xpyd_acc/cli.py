@@ -191,6 +191,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Send each unique prompt only once per endpoint, reuse results for duplicates",
     )
     bc.add_argument(
+        "--rate-limit", type=float, default=None,
+        help="Max requests per second to each endpoint",
+    )
+    bc.add_argument(
         "--cache-dir", default=None,
         help="Directory for response cache (default: .xpyd-acc-cache)",
     )
@@ -375,6 +379,10 @@ def main(argv: list[str] | None = None) -> None:
         help="HTTP request timeout in seconds (default: 120.0)",
     )
     sc.add_argument(
+        "--rate-limit", type=float, default=None,
+        help="Max requests per second to the endpoint",
+    )
+    sc.add_argument(
         "--template", default=None,
         help="Prompt template: built-in name or path to YAML/TOML file",
     )
@@ -415,6 +423,10 @@ def main(argv: list[str] | None = None) -> None:
         "--concurrency", type=int, default=1, help="Concurrent requests (default: 1)",
     )
     bm.add_argument("--json", default=None, dest="json_path", help="Export JSON report to path")
+    bm.add_argument(
+        "--rate-limit", type=float, default=None,
+        help="Max requests per second",
+    )
     _add_sampling_args(bm)
 
     # init
@@ -559,6 +571,8 @@ def main(argv: list[str] | None = None) -> None:
         args.seed = env.seed
     if env.timeout is not None and hasattr(args, "timeout") and args.timeout is None:
         args.timeout = env.timeout
+    if env.rate_limit is not None and hasattr(args, "rate_limit") and args.rate_limit is None:
+        args.rate_limit = env.rate_limit
 
     # Apply hardcoded defaults for any remaining None values
     _FINAL_DEFAULTS: dict[str, object] = {
@@ -866,6 +880,8 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             report = None  # not used in multi-target path
         else:
             multi_report = None
+            from xpyd_acc.rate_limit import RateLimiter
+            _rl = RateLimiter(getattr(args, "rate_limit", None))
             report = await run_batch(
                 samples,
                 args.baseline,
@@ -884,6 +900,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 deduplicate=getattr(args, "deduplicate", False),
                 enable_request_ids=not getattr(args, "no_request_id", False),
                 cache=batch_cache,
+                rate_limiter=_rl,
             )
     finally:
         if progress_ctx is not None:

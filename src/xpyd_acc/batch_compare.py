@@ -333,6 +333,7 @@ async def run_batch(
     enable_request_ids: bool = True,
     deduplicate: bool = False,
     cache: Any | None = None,
+    rate_limiter: Any | None = None,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -372,6 +373,8 @@ async def run_batch(
         b_rid = str(uuid.uuid4()) if enable_request_ids else ""
         t_rid = str(uuid.uuid4()) if enable_request_ids else ""
         async with semaphore:
+            if rate_limiter is not None:
+                await rate_limiter.acquire()
             baseline_text, baseline_lp, b_rid_out = await _collect_output(
                 baseline_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
@@ -380,6 +383,8 @@ async def run_batch(
                 request_id=b_rid if enable_request_ids else None,
                 cache=cache,
             )
+            if rate_limiter is not None:
+                await rate_limiter.acquire()
             target_text, target_lp, t_rid_out = await _collect_output(
                 target_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
