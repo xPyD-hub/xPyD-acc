@@ -37,3 +37,4 @@ and run the same dataset against each model, producing a `MultiModelBatchReport`
 | # | Date | Task | Result | Reviewer Comments |
 |---|------|------|--------|-------------------|
 | 1 | 2026-04-06 | M73: Multi-Model Comparison | ⏳ pending review | — |
+| 2 | 2026-04-06 | M73: CLI Modularization — split cli.py into cli/ package | ⏳ pending review | — |
