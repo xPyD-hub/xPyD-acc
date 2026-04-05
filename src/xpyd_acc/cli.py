@@ -535,6 +535,18 @@ def main(argv: list[str] | None = None) -> None:
         "--search", default=None,
         help="Filter by text in prompt or output (case-insensitive)",
     )
+    flt.add_argument(
+        "--annotation-label", default=None,
+        help="Filter by annotation label",
+    )
+    flt.add_argument(
+        "--annotated", action="store_true", default=False,
+        help="Only samples with annotations",
+    )
+    flt.add_argument(
+        "--unannotated", action="store_true", default=False,
+        help="Only samples without annotations",
+    )
 
     cfg_cmd = sub.add_parser("config", help="Configuration utilities")
     cfg_sub = cfg_cmd.add_subparsers(dest="config_command")
@@ -563,6 +575,15 @@ def main(argv: list[str] | None = None) -> None:
         choices=["oneline", "json", "kv"],
         help="Output format (default: oneline)",
     )
+
+    ann_cmd = sub.add_parser("annotate", help="Add notes and labels to batch report samples")
+    ann_cmd.add_argument("--report", required=True, help="Path to batch report JSON")
+    ann_cmd.add_argument("--sample", default=None, help="Sample ID to annotate")
+    ann_cmd.add_argument("--note", default=None, help="Free-text note for the sample")
+    ann_cmd.add_argument("--label", default=None, help="Classification label for the sample")
+    ann_cmd.add_argument("--clear", action="store_true", help="Clear annotations for the sample")
+    ann_cmd.add_argument("--list", dest="list_annotations", action="store_true",
+                         help="List all annotations for the report")
 
     explain_cmd = sub.add_parser("explain", help="Deep-dive analysis of a single sample")
     explain_cmd.add_argument("--report", required=True, help="Path to batch report JSON")
@@ -617,6 +638,11 @@ def main(argv: list[str] | None = None) -> None:
     # Handle 'summary' subcommand (M48)
     if args.command == "summary":
         _run_summary(args)
+        return
+
+    # Handle 'annotate' subcommand (M54)
+    if args.command == "annotate":
+        _run_annotate(args)
         return
 
     # Handle 'explain' subcommand (M52)
@@ -2139,6 +2165,7 @@ def _run_summary(args: argparse.Namespace) -> None:
 
 def _run_filter(args: argparse.Namespace) -> None:
     """Filter samples from a batch report."""
+    from xpyd_acc.annotate import AnnotationStore
     from xpyd_acc.filter import FilterConfig, filter_samples, load_report, save_report
 
     report = load_report(args.input)
@@ -2153,6 +2180,39 @@ def _run_filter(args: argparse.Namespace) -> None:
         search=args.search,
     )
     filtered = filter_samples(report, config)
+
+    # Apply annotation-based filters
+    ann_label = getattr(args, "annotation_label", None)
+    annotated_only = getattr(args, "annotated", False)
+    unannotated_only = getattr(args, "unannotated", False)
+
+    if ann_label or annotated_only or unannotated_only:
+        store = AnnotationStore.load(args.input)
+        results = filtered.get("results", [])
+        kept: list[dict] = []
+        for r in results:
+            sid = r.get("sample_id", "")
+            ann = store.get(sid)
+            has_ann = ann is not None and not ann.is_empty()
+
+            if annotated_only and not has_ann:
+                continue
+            if unannotated_only and has_ann:
+                continue
+            if ann_label:
+                if ann is None or ann_label not in ann.labels:
+                    continue
+            kept.append(r)
+
+        # Recalculate stats
+        total = len(kept)
+        divergent = sum(1 for r in kept if not r.get("exact_match", True))
+        filtered["results"] = kept
+        filtered["total_samples"] = total
+        filtered["divergent_samples"] = divergent
+        filtered["match_samples"] = total - divergent
+        filtered["divergence_rate"] = divergent / total if total else 0.0
+
     save_report(filtered, args.output)
 
     total = filtered["total_samples"]
@@ -2313,6 +2373,65 @@ def _run_cluster(args: argparse.Namespace) -> None:
     if args.cluster_json:
         result.to_json(args.cluster_json)
         console.print(f"\n  Exported to {args.cluster_json}")
+
+
+def _run_annotate(args: argparse.Namespace) -> None:
+    """Handle the 'annotate' subcommand."""
+    from pathlib import Path
+
+    from rich.console import Console
+    from rich.table import Table
+
+    from xpyd_acc.annotate import AnnotationStore
+
+    console = Console()
+    report_path = Path(args.report)
+    if not report_path.exists():
+        console.print(f"[red]Report not found:[/red] {report_path}")
+        raise SystemExit(1)
+
+    store = AnnotationStore.load(report_path)
+
+    if args.list_annotations:
+        ids = store.list_annotated_ids()
+        if not ids:
+            console.print("No annotations found.")
+            return
+        table = Table(title="Annotations")
+        table.add_column("Sample ID")
+        table.add_column("Labels")
+        table.add_column("Note")
+        for sid in ids:
+            ann = store.get(sid)
+            if ann is None:
+                continue
+            table.add_row(sid, ", ".join(ann.labels), ann.note or "")
+        console.print(table)
+        return
+
+    if not args.sample:
+        console.print("[red]--sample is required for add/clear operations[/red]")
+        raise SystemExit(1)
+
+    if args.clear:
+        removed = store.clear(args.sample)
+        store.save(report_path)
+        if removed:
+            console.print(f"Cleared annotations for sample [bold]{args.sample}[/bold]")
+        else:
+            console.print(f"No annotations found for sample [bold]{args.sample}[/bold]")
+        return
+
+    if args.note is None and args.label is None:
+        console.print("[red]Provide --note and/or --label[/red]")
+        raise SystemExit(1)
+
+    if args.note is not None:
+        store.set_note(args.sample, args.note)
+    if args.label is not None:
+        store.add_label(args.sample, args.label)
+    store.save(report_path)
+    console.print(f"Annotated sample [bold]{args.sample}[/bold]")
 
 
 def _run_explain(args: argparse.Namespace) -> None:
