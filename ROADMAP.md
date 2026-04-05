@@ -513,3 +513,14 @@
 - `format_usage_summary()` for terminal display
 - JSON export via `UsageSummary.to_json()`
 - 16 tests covering usage extraction, cost calculation, formatting, serialization
+
+## M60: Cost Tracking Integration into Batch Compare ✅
+- `_collect_output()` extracts and returns `TokenUsage` from API responses
+- `BatchReport` has `usage: UsageSummary | None` field
+- `format_report()` shows usage summary when available
+- `to_json()` and `to_markdown()` include usage data
+- CLI flags `--input-price` and `--output-price` set pricing (USD per 1M tokens)
+- TOML `[cost]` section: `input_price_per_m`, `output_price_per_m`
+- `load_report()` round-trips usage data
+- `MultiTargetBatchReport` also tracks aggregate usage
+- 17 tests covering integration, round-trip, config, CLI flags
