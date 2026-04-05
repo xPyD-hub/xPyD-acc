@@ -40,6 +40,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_annotate(sub)
     _register_explain(sub)
     _register_fingerprint(sub)
+    _register_root_cause(sub)
     _register_reproducibility(sub)
     _register_dataset_stats(sub)
     _register_cache(sub)
@@ -489,3 +490,9 @@ def _register_cache(sub):
     cache_clear.add_argument("--cache-dir", default=None, help="Cache directory")
     cache_stats = cache_sub.add_parser("stats", help="Show cache statistics")
     cache_stats.add_argument("--cache-dir", default=None, help="Cache directory")
+
+
+def _register_root_cause(sub):
+    rc_cmd = sub.add_parser("root-cause", help="Analyze divergence root cause from batch report")
+    rc_cmd.add_argument("--report", required=True, help="Path to batch report JSON")
+    rc_cmd.add_argument("--json", dest="rc_json", default=None, help="Export analysis as JSON")

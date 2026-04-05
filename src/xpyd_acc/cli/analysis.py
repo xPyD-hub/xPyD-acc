@@ -1,4 +1,4 @@
-"""CLI handlers for watch, entropy, length-bias, sensitivity, fingerprint."""
+"""CLI handlers for watch, entropy, length-bias, sensitivity, fingerprint, root-cause."""
 
 from __future__ import annotations
 
@@ -215,3 +215,17 @@ def _run_fingerprint(args: argparse.Namespace) -> None:
             print(f"\nExported to {args.fp_json}")
 
     asyncio.run(_go())
+
+
+def handle_root_cause(args: argparse.Namespace) -> None:
+    """Handle the root-cause subcommand."""
+    from pathlib import Path
+
+    from ..root_cause import analyze_from_file, format_root_cause
+
+    analysis = analyze_from_file(args.report)
+    print(format_root_cause(analysis))
+
+    if args.rc_json:
+        Path(args.rc_json).write_text(analysis.to_json())
+        print(f"\nExported to {args.rc_json}")

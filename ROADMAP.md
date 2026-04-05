@@ -670,7 +670,7 @@
 - `sensitivity.py` module: `generate_perturbations()`, `run_sensitivity()`, `SensitivityResult`, `format_sensitivity()`
 - 22 tests covering perturbation generation, classification, analysis, formatting, JSON export, CLI integration
 
-## M73: Multi-Model Comparison in Single Batch Run
+## M73: Multi-Model Comparison in Single Batch Run ✅
 - `batch-compare --model m1 --model m2 --baseline ... --target ... --dataset ...`
 - Run same dataset against each model via existing `run_batch()`
 - `MultiModelBatchReport` with per-model `BatchReport` and `CrossModelSummary`
@@ -679,3 +679,40 @@
 - Terminal formatting with per-model pass/fail indicators
 - `multi_model.py` module: `run_multi_model()`, `compute_cross_model_summary()`, `format_multi_model_report()`
 - 15 tests covering dataclasses, cross-model summary, serialization, async runs
+
+## M74: Divergence Root Cause Heuristics
+- `xpyd-acc root-cause --report <path>` analyzes batch report to suggest probable root cause
+- Heuristic rules based on divergence patterns:
+  - Early divergence (index < 5) + high logprob gap → likely prefill issue
+  - Mid-sequence divergence + context length correlation → likely KV cache transfer issue
+  - Late divergence + low logprob gap → likely decode accumulation issue
+  - Truncation-correlated divergence → likely max_tokens or stop sequence mismatch
+- `RootCauseAnalysis` dataclass: classification, confidence, evidence list, suggested next steps
+- Aggregate analysis across all divergent samples for overall diagnosis
+- `--json <path>` export
+- Rich terminal output with evidence breakdown
+- `root_cause.py` module: `analyze_root_cause()`, `RootCauseAnalysis`, `format_root_cause()`
+- 15 tests covering heuristic rules, edge cases, formatting, JSON export, CLI integration
+
+## M75: Side-by-Side Token Diff Viewer
+- `xpyd-acc token-diff --report <path> --sample <id>` shows rich side-by-side token diff
+- Baseline tokens on left, target tokens on right, aligned at divergence point
+- Color-coded: green (match), red (mismatch), yellow (logprob warning)
+- Context window: configurable tokens before/after divergence (default 10)
+- Logprob annotations inline (show probability for each mismatched token)
+- `--all-divergent` mode: iterate through all divergent samples in report
+- `--format plain` for non-TTY output (CI logs)
+- `token_diff.py` module: `build_token_diff()`, `format_token_diff()`, `TokenDiffLine`
+- 12 tests covering alignment, coloring, edge cases, plain format, CLI integration
+
+## M76: Report Dashboard Server
+- `xpyd-acc serve --report <path>` launches a local HTTP server with interactive dashboard
+- Single-page HTML app served from bundled template (no external dependencies)
+- Summary cards: divergence rate, sample count, top divergent samples
+- Clickable sample list with per-sample divergence detail
+- Filter by classification, search by prompt text
+- Auto-refresh when report file changes on disk
+- `--port <int>` (default 8080), `--host <str>` (default localhost)
+- `--open` flag to auto-open browser
+- `serve.py` module with `run_server()` using stdlib `http.server`
+- 10 tests covering template rendering, route handling, report loading

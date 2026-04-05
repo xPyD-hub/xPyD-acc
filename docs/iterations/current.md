@@ -38,3 +38,28 @@ and run the same dataset against each model, producing a `MultiModelBatchReport`
 |---|------|------|--------|-------------------|
 | 1 | 2026-04-06 | M73: Multi-Model Comparison | ⏳ pending review | — |
 | 2 | 2026-04-06 | M73: CLI Modularization — split cli.py into cli/ package | ⏳ pending review | — |
+
+---
+
+## Iteration 3: M74 — Divergence Root Cause Heuristics
+
+**Date:** 2026-04-06
+**Issue:** #161
+**Branch:** `feat/m74-root-cause-heuristics`
+
+### What was done
+
+Added `xpyd-acc root-cause --report <path>` CLI subcommand that analyzes batch report divergence patterns and suggests probable root cause (prefill, KV transfer, decode, truncation, mixed, or inconclusive).
+
+### Files changed
+
+- **`src/xpyd_acc/root_cause.py`** (new): `analyze_root_cause()`, `RootCauseAnalysis`, `Evidence` dataclasses, `_classify_sample()` heuristic rules, `format_root_cause()` terminal display, `analyze_from_file()` convenience function
+- **`src/xpyd_acc/cli/analysis.py`**: Added `handle_root_cause()` CLI handler
+- **`src/xpyd_acc/cli/parsers.py`**: Registered `root-cause` subcommand with `--report` and `--json` flags
+- **`src/xpyd_acc/cli/__init__.py`**: Wired `root-cause` to handler
+- **`tests/test_root_cause.py`** (new): 21 tests covering heuristic classification, analysis, serialization, formatting, file I/O, CLI integration
+- **`ROADMAP.md`**: Marked M73 ✅, added M74-M76
+
+### Tests
+
+21 tests all passing. Full suite: 1085 passed.
