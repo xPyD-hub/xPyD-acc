@@ -441,7 +441,7 @@
 - Error handling for missing sample ID and missing report file
 - 15 tests covering all functionality and CLI integration
 
-## M53: Confidence Intervals for Divergence Rate
+## M53: Confidence Intervals for Divergence Rate ✅
 - `batch-compare --confidence` flag adds 95% confidence interval to divergence rate
 - Wilson score interval for binomial proportion (works well with small samples)
 - `BatchReport.divergence_ci_lower` and `divergence_ci_upper` fields
