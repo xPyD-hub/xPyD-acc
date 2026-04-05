@@ -354,7 +354,7 @@
 - Rich terminal output with colored status transitions
 - Complements `regression` (which only checks match/diverge) by also showing output text changes
 
-## M44: Request Rate Limiting ⬜
+## M44: Request Rate Limiting ✅
 - `--rate-limit <float>` flag: max requests per second to each endpoint
 - Token bucket algorithm for smooth rate control
 - TOML config: `[defaults] rate_limit = 10.0`
