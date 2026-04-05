@@ -503,3 +503,13 @@
 - Rich terminal output with stats tables
 - Works with JSONL, CSV, JSON array formats
 - 15 tests covering stats computation, duplicates, template, JSON export, CLI
+
+## M59: Cost Estimation from API Usage ✅
+- `cost.py` module: extract token usage from OpenAI-compatible API responses
+- `TokenUsage` dataclass: prompt_tokens, completion_tokens, total_tokens
+- `CostConfig`: configurable per-million-token pricing (input/output)
+- `UsageSummary`: aggregate usage across multiple requests with cost estimation
+- `extract_usage()` parses `usage` field from API response JSON
+- `format_usage_summary()` for terminal display
+- JSON export via `UsageSummary.to_json()`
+- 16 tests covering usage extraction, cost calculation, formatting, serialization
