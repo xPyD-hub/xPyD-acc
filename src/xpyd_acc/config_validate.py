@@ -65,6 +65,7 @@ STARTER_CONFIG = """\
 # top_p = 1.0
 # seed = 42
 # timeout = 120.0
+# rate_limit = 10.0
 
 [batch]
 # concurrency = 5

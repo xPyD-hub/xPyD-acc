@@ -353,3 +353,21 @@
 - `--json <path>` export the diff as JSON
 - Rich terminal output with colored status transitions
 - Complements `regression` (which only checks match/diverge) by also showing output text changes
+
+## M44: Request Rate Limiting ⬜
+- `--rate-limit <float>` flag: max requests per second to each endpoint
+- Token bucket algorithm for smooth rate control
+- TOML config: `[defaults] rate_limit = 10.0`
+- Environment variable: `XPYD_ACC_RATE_LIMIT`
+- Integrated into `batch-compare`, `snapshot capture`, and `benchmark`
+- `rate_limit.py` module with async `RateLimiter` class
+- Logged at INFO level when requests are throttled
+- Tests for rate limiter timing, config resolution, CLI integration
+
+## M45: Custom Output Normalizers ⬜
+- Plugin-style output normalizers loaded from Python modules
+- `--normalizer <module:function>` flag for `batch-compare`
+- Built-in normalizers: strip_thinking_tags, normalize_json, normalize_numbers
+- Normalizers applied before comparison (after existing tolerance matching)
+- TOML config: `[matching] normalizers = ["strip_thinking_tags"]`
+- Tests for built-in normalizers and custom normalizer loading
