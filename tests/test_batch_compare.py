@@ -339,7 +339,7 @@ class TestOnProgressCallback:
             DatasetSample(id="2", prompt="test"),
         ]
 
-        mock_output = ("response text", [], "", TokenUsage(), "stop")
+        mock_output = ("response text", [], "", TokenUsage(), "stop", 1)
 
         progress_calls: list[tuple[int, int]] = []
 
@@ -373,7 +373,7 @@ class TestOnProgressCallback:
         from xpyd_acc.cost import TokenUsage
 
         samples = [DatasetSample(id="0", prompt="hello")]
-        mock_output = ("response", [], "", TokenUsage(), "stop")
+        mock_output = ("response", [], "", TokenUsage(), "stop", 1)
 
         with patch("xpyd_acc.batch_compare._collect_output", new_callable=AsyncMock) as mock_co:
             mock_co.return_value = mock_output

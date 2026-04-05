@@ -27,7 +27,7 @@ def _samples(n: int = 3) -> list[DatasetSample]:
 def _fake_collect_output(text: str = "hello"):
     """Return an AsyncMock that simulates _collect_output."""
     async def _mock(*args, **kwargs):
-        return text, [], "", TokenUsage(0, 0), "stop"  # text, logprobs, rid, usage, finish
+        return text, [], "", TokenUsage(0, 0), "stop", 1  # text, logprobs, rid, usage, finish
     return _mock
 
 
@@ -179,7 +179,7 @@ class TestCheckpointIntegration:
         async def _mock(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            return "output", [], "", TokenUsage(0, 0), "stop"
+            return "output", [], "", TokenUsage(0, 0), "stop", 1
 
         mock_collect.side_effect = _mock
         cp_path = tmp_path / "cp.json"

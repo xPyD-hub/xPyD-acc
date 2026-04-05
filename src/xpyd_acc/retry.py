@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+from dataclasses import dataclass
 from typing import Any, Callable, TypeVar
 
 import httpx
@@ -27,13 +28,60 @@ class RetriesExhausted(Exception):
         super().__init__(f"All {attempts} attempts failed. Last error: {last_error}")
 
 
+@dataclass
+class RetryResult:
+    """Wrapper returned by :func:`retry_async` containing the value and attempt metadata."""
+
+    value: Any
+    attempts: int  # 1 means succeeded on first try (no retries)
+
+
+@dataclass
+class RetryStats:
+    """Aggregate retry statistics across multiple requests."""
+
+    total_requests: int = 0
+    total_retries: int = 0  # sum of (attempts - 1) across all requests
+    max_retries_single: int = 0  # highest (attempts - 1) for a single request
+    retried_request_count: int = 0  # how many requests needed at least one retry
+
+    def record(self, result: RetryResult) -> None:
+        """Record a single :class:`RetryResult`."""
+        retries = result.attempts - 1
+        self.total_requests += 1
+        self.total_retries += retries
+        if retries > self.max_retries_single:
+            self.max_retries_single = retries
+        if retries > 0:
+            self.retried_request_count += 1
+
+    def to_dict(self) -> dict[str, int]:
+        """Serialize to a plain dictionary."""
+        return {
+            "total_requests": self.total_requests,
+            "total_retries": self.total_retries,
+            "max_retries_single": self.max_retries_single,
+            "retried_request_count": self.retried_request_count,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RetryStats:
+        """Deserialize from a dictionary."""
+        return cls(
+            total_requests=data.get("total_requests", 0),
+            total_retries=data.get("total_retries", 0),
+            max_retries_single=data.get("max_retries_single", 0),
+            retried_request_count=data.get("retried_request_count", 0),
+        )
+
+
 async def retry_async(
     func: Callable[..., Any],
     *args: Any,
     retries: int = 3,
     base_delay: float = 1.0,
     **kwargs: Any,
-) -> Any:
+) -> RetryResult:
     """Call *func* with retries on transient HTTP errors.
 
     Retries on:
@@ -50,7 +98,8 @@ async def retry_async(
         *args, **kwargs: Forwarded to *func*.
 
     Returns:
-        The return value of *func*.
+        A :class:`RetryResult` containing the return value and the number of
+        attempts made.
 
     Raises:
         RetriesExhausted: If all attempts fail.
@@ -62,7 +111,8 @@ async def retry_async(
 
     for attempt in range(retries):
         try:
-            return await func(*args, **kwargs)
+            value = await func(*args, **kwargs)
+            return RetryResult(value=value, attempts=attempt + 1)
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code not in RETRYABLE_STATUS_CODES:
                 raise

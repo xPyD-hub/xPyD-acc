@@ -14,6 +14,7 @@ from xpyd_acc.notify import (
     resolve_webhook_config,
     send_webhook,
 )
+from xpyd_acc.retry import RetryResult
 
 
 def _make_payload(*, divergence: bool = True) -> WebhookPayload:
@@ -139,7 +140,7 @@ class TestSendWebhook:
         mock_response.raise_for_status = lambda: None
 
         with patch("xpyd_acc.notify.retry_async", new_callable=AsyncMock) as mock_retry:
-            mock_retry.return_value = True
+            mock_retry.return_value = RetryResult(value=True, attempts=1)
             result = await send_webhook(config, payload)
             assert result is True
             mock_retry.assert_called_once()
@@ -150,7 +151,7 @@ class TestSendWebhook:
         payload = _make_payload(divergence=True)
 
         with patch("xpyd_acc.notify.retry_async", new_callable=AsyncMock) as mock_retry:
-            mock_retry.return_value = True
+            mock_retry.return_value = RetryResult(value=True, attempts=1)
             result = await send_webhook(config, payload)
             assert result is True
 
@@ -163,7 +164,7 @@ class TestSendWebhook:
         payload = _make_payload()
 
         with patch("xpyd_acc.notify.retry_async", new_callable=AsyncMock) as mock_retry:
-            mock_retry.return_value = True
+            mock_retry.return_value = RetryResult(value=True, attempts=1)
             result = await send_webhook(config, payload)
             assert result is True
 

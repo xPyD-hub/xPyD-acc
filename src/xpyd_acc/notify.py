@@ -71,7 +71,8 @@ async def send_webhook(
             return True
 
     try:
-        return await retry_async(_do_post, retries=retries, base_delay=retry_delay)
+        result = await retry_async(_do_post, retries=retries, base_delay=retry_delay)
+        return result.value
     except Exception:
         logger.error("Webhook delivery failed after %d retries", retries)
         return False

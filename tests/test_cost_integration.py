@@ -201,18 +201,23 @@ class TestCollectOutputReturnsUsage:
     @pytest.mark.asyncio
     async def test_collect_output_returns_usage(self):
         from xpyd_acc.batch_compare import _collect_output
+        from xpyd_acc.retry import RetryResult
 
         with patch("xpyd_acc.retry.retry_async") as mock_retry:
-            mock_retry.return_value = (
-                "hello",
-                [],
-                "rid-123",
-                TokenUsage(prompt_tokens=10, completion_tokens=5),
-                "stop",
+            mock_retry.return_value = RetryResult(
+                value=(
+                    "hello",
+                    [],
+                    "rid-123",
+                    TokenUsage(prompt_tokens=10, completion_tokens=5),
+                    "stop",
+                ),
+                attempts=1,
             )
-            text, lp, rid, usage, finish = await _collect_output(
+            text, lp, rid, usage, finish, attempts = await _collect_output(
                 "http://fake", "test prompt",
                 skip_validation=True,
             )
             assert usage.prompt_tokens == 10
             assert usage.completion_tokens == 5
+            assert attempts == 1
