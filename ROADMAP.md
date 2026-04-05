@@ -717,7 +717,7 @@
 - `serve.py` module with `run_server()` using stdlib `http.server`
 - 10 tests covering template rendering, route handling, report loading
 
-## M77: Prometheus Metrics Export
+## M77: Prometheus Metrics Export ✅
 - `batch-compare --prometheus <path>` exports results in Prometheus text exposition format
 - Metrics: `xpyd_acc_divergence_rate`, `xpyd_acc_total_samples`, `xpyd_acc_divergent_samples`, `xpyd_acc_truncated_samples`
 - Per-classification gauge: `xpyd_acc_classification_count{classification="likely_bug|likely_uncertainty|match|unknown"}`
@@ -727,3 +727,14 @@
 - `--push-gateway <url>` flag to push metrics to Prometheus Pushgateway
 - `prometheus.py` module: `to_prometheus()`, `push_to_gateway()`
 - 10 tests covering metric generation, labels, push mock, CLI integration
+
+## M78: Grafana Dashboard Template Export
+- `xpyd-acc grafana-dashboard --report <path> --output <dashboard.json>` generates a Grafana dashboard JSON
+- Pre-configured panels: divergence rate gauge, classification pie chart, context length vs divergence scatter
+- Template variables for Prometheus datasource name
+- `--datasource <name>` flag (default "Prometheus")
+- `--title <text>` flag for dashboard title
+- Dashboard compatible with Grafana 9+ import
+- Pairs naturally with M77 Prometheus export for full observability stack
+- `grafana.py` module: `generate_dashboard()`, `GrafanaDashboard` dataclass
+- 10 tests covering dashboard generation, panels, template vars, JSON export, CLI integration
