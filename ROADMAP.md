@@ -430,3 +430,13 @@
 - `HistoryStore.purge()` method for programmatic use
 - Rich terminal output with table of purged entries
 - 8 tests covering purge logic, keep_last, dry-run, empty store, CLI integration
+
+## M52: Sample Deep-Dive Explain Command ✅
+- `xpyd-acc explain --report <path> --sample <id>` for detailed single-sample analysis
+- Token-by-token alignment with divergence context window (5 tokens before/after)
+- Logprob comparison at divergence point (baseline vs target)
+- Classification reasoning (why likely_bug vs likely_uncertainty vs unknown)
+- Suggested next debugging steps based on classification and divergence position
+- `--json <path>` export for programmatic use
+- Error handling for missing sample ID and missing report file
+- 15 tests covering all functionality and CLI integration
