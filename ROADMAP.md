@@ -105,6 +105,16 @@
 - Columns: sample_id, prompt (truncated), baseline_output, target_output, match, divergence_index, logprob_gap
 - Useful for spreadsheet analysis and filtering
 
+## M49: Divergence Pattern Clustering ✅
+- `xpyd-acc cluster --input <report.json>` groups divergent samples by divergence pattern
+- Feature vector: divergence index, logprob gap, context length, output length ratio
+- K-means clustering with automatic K selection via silhouette score
+- `--clusters <n>` to override auto-selection
+- `--json <path>` exports cluster results
+- Per-cluster summary: representative sample, avg metrics, member count
+- Rich terminal output with cluster table
+- 12 tests covering clustering, edge cases, JSON export, CLI integration
+
 ## M16: Token Timing Analysis ✅
 - Measure TTFT (time to first token) for both endpoints
 - Inter-token latency statistics (p50, p95, p99)
