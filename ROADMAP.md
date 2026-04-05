@@ -680,7 +680,7 @@
 - `multi_model.py` module: `run_multi_model()`, `compute_cross_model_summary()`, `format_multi_model_report()`
 - 15 tests covering dataclasses, cross-model summary, serialization, async runs
 
-## M74: Divergence Root Cause Heuristics
+## M74: Divergence Root Cause Heuristics ✅
 - `xpyd-acc root-cause --report <path>` analyzes batch report to suggest probable root cause
 - Heuristic rules based on divergence patterns:
   - Early divergence (index < 5) + high logprob gap → likely prefill issue
