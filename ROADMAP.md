@@ -538,3 +538,16 @@
 - CLI `--warn-truncated <float>` flag: exit 2 if truncated ratio exceeds threshold
 - TOML config: `[batch] warn_truncated = 0.1`
 - 18 tests covering detection, classification, JSON round-trip, backward compat, formatting
+
+## M62: Reproducibility Score — Multi-Run Consistency Measurement ✅
+- `xpyd-acc reproducibility --url <endpoint> --prompt <text>` sends prompt N times
+- `ReproducibilityResult` dataclass: unique_count, majority_fraction, avg_pairwise_distance
+- `--runs <n>` configurable (default 5)
+- `--baseline <url> --target <url>` dual-endpoint comparison mode
+- `--json <path>` export
+- `--threshold <float>` CI-friendly exit code (exit 1 if majority fraction below threshold)
+- Sampling params (--temperature, --top-p, --seed, --profile) supported
+- Levenshtein edit distance for pairwise output comparison
+- Rich terminal output with consistency summary
+- `reproducibility.py` module with `run_reproducibility()` async function
+- 18 tests covering single/dual endpoint, metrics, edge cases, JSON export, CLI integration
