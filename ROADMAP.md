@@ -333,7 +333,7 @@
 - Reuses existing retry logic for delivery reliability
 - Tests for webhook send, skip, retry failure, header parsing, config resolution
 
-## M42: Sample Filtering for Batch Reports
+## M42: Sample Filtering for Batch Reports ✅
 - `xpyd-acc filter --input <report.json> --output <filtered.json>` filters samples from existing reports
 - `--classification <value>` filter by classification (likely_bug, likely_uncertainty, match, unknown)
 - `--divergent-only` / `--matched-only` quick filters
