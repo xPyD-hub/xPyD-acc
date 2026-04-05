@@ -524,3 +524,17 @@
 - `load_report()` round-trips usage data
 - `MultiTargetBatchReport` also tracks aggregate usage
 - 17 tests covering integration, round-trip, config, CLI flags
+
+## M61: Output Truncation Detection ✅
+- `_collect_output()` extracts and returns `finish_reason` from API responses
+- `SampleResult` has `baseline_finish_reason` and `target_finish_reason` fields
+- `BatchReport` has `truncated_count` field (samples where either finish_reason is "length")
+- `compute_report()` counts truncated samples automatically
+- `format_report()` shows truncated count with ⚠️ when non-zero
+- `to_json()` includes `finish_reason` per result and `truncated_count` in report
+- `to_markdown()` shows truncation summary and flags truncated divergent samples
+- `load_report()` deserializes truncation fields; backward-compatible with v1 reports
+- Report schema version bumped to 2
+- CLI `--warn-truncated <float>` flag: exit 2 if truncated ratio exceeds threshold
+- TOML config: `[batch] warn_truncated = 0.1`
+- 18 tests covering detection, classification, JSON round-trip, backward compat, formatting

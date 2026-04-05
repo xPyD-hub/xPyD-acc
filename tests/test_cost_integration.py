@@ -208,8 +208,9 @@ class TestCollectOutputReturnsUsage:
                 [],
                 "rid-123",
                 TokenUsage(prompt_tokens=10, completion_tokens=5),
+                "stop",
             )
-            text, lp, rid, usage = await _collect_output(
+            text, lp, rid, usage, finish = await _collect_output(
                 "http://fake", "test prompt",
                 skip_validation=True,
             )
