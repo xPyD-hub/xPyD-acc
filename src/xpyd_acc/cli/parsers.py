@@ -41,6 +41,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_explain(sub)
     _register_fingerprint(sub)
     _register_root_cause(sub)
+    _register_token_diff(sub)
     _register_reproducibility(sub)
     _register_dataset_stats(sub)
     _register_cache(sub)
@@ -496,3 +497,25 @@ def _register_root_cause(sub):
     rc_cmd = sub.add_parser("root-cause", help="Analyze divergence root cause from batch report")
     rc_cmd.add_argument("--report", required=True, help="Path to batch report JSON")
     rc_cmd.add_argument("--json", dest="rc_json", default=None, help="Export analysis as JSON")
+
+
+def _register_token_diff(sub):
+    td_cmd = sub.add_parser("token-diff", help="Side-by-side token diff viewer")
+    td_cmd.add_argument("--report", required=True, help="Path to batch report JSON")
+    td_cmd.add_argument("--sample", default=None, help="Sample ID to show diff for")
+    td_cmd.add_argument(
+        "--all-divergent", action="store_true",
+        help="Show diffs for all divergent samples",
+    )
+    td_cmd.add_argument(
+        "--context", type=int, default=10,
+        help="Number of tokens before/after divergence (default: 10)",
+    )
+    td_cmd.add_argument(
+        "--format", dest="diff_format", choices=["rich", "plain"], default="rich",
+        help="Output format (default: rich)",
+    )
+    td_cmd.add_argument(
+        "--json", dest="td_json", default=None,
+        help="Export diff as JSON",
+    )
