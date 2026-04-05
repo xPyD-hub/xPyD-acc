@@ -234,6 +234,17 @@ def _print_multi_report(args, multi_report, target_urls, format_report, export_c
         Path(args.junit).write_text(multi_report_to_junit(multi_report))
         print(f"\nJUnit XML exported to {args.junit}")
 
+    if getattr(args, "prometheus", None):
+        from pathlib import Path
+
+        from xpyd_acc.prometheus import to_prometheus
+
+        # Use the first target's report for multi-target prometheus export
+        first_report = next(iter(multi_report.per_target.values()))
+        prom_text = to_prometheus(first_report)
+        Path(args.prometheus).write_text(prom_text, encoding="utf-8")
+        print(f"\nPrometheus metrics exported to {args.prometheus}")
+
     fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
     worst_rate = max(r.divergence_rate for r in multi_report.per_target.values())
     if fail_threshold is not None:
@@ -277,6 +288,14 @@ async def _print_single_report(args, report, format_report, export_csv, export_m
         from xpyd_acc.junit import report_to_junit
         Path(args.junit).write_text(report_to_junit(report))
         print(f"\nJUnit XML exported to {args.junit}")
+
+    if getattr(args, "prometheus", None):
+        from pathlib import Path
+
+        from xpyd_acc.prometheus import to_prometheus
+        prom_text = to_prometheus(report)
+        Path(args.prometheus).write_text(prom_text, encoding="utf-8")
+        print(f"\nPrometheus metrics exported to {args.prometheus}")
 
     await _maybe_send_webhook(args, report)
     _check_truncation_threshold(args, report)

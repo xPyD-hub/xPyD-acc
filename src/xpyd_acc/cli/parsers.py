@@ -46,6 +46,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_dataset_stats(sub)
     _register_cache(sub)
     _register_serve(sub)
+    _register_prometheus(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -127,6 +128,7 @@ def _register_batch(sub):
     bc.add_argument("--json", default=None, dest="json_path", help="Path to export JSON results")
     bc.add_argument("--markdown", default=None, help="Path to export Markdown report")
     bc.add_argument("--junit", default=None, help="Path to export JUnit XML results")
+    bc.add_argument("--prometheus", default=None, help="Path to export Prometheus metrics file")
     bc.add_argument("--retries", type=int, default=None, help="Max retry attempts (default: 3)")
     bc.add_argument(
         "--retry-delay", type=float, default=None,
@@ -530,4 +532,20 @@ def _register_serve(sub):
     sv.add_argument(
         "--open", action="store_true", default=False, dest="open_browser",
         help="Auto-open browser on start",
+    )
+
+
+def _register_prometheus(sub):
+    pm = sub.add_parser("prometheus", help="Export batch report as Prometheus metrics")
+    pm.add_argument("--report", required=True, help="Path to batch report JSON file")
+    pm.add_argument("--output", default=None, help="Write metrics to file (default: stdout)")
+    pm.add_argument("--model", default="", help="Model label for metrics")
+    pm.add_argument("--dataset", default="", help="Dataset label for metrics")
+    pm.add_argument(
+        "--push-gateway", default=None, dest="push_gateway",
+        help="Prometheus Pushgateway URL to push metrics to",
+    )
+    pm.add_argument(
+        "--job", default="xpyd_acc",
+        help="Job label for Pushgateway (default: xpyd_acc)",
     )
