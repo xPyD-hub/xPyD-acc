@@ -98,4 +98,5 @@ Added `xpyd-acc root-cause --report <path>` CLI subcommand that analyzes batch r
 | # | Date | Task | Result | Reviewer Comments |
 |---|------|------|--------|-------------------|
 | M74 | 2026-04-05 | Divergence Root Cause Heuristics | ✅ merged | Both approved |
-| M75 | 2026-04-06 | Side-by-Side Token Diff Viewer | ⏳ PR pending | — |
+| M75 | 2026-04-06 | Side-by-Side Token Diff Viewer | ✅ merged | Both approved |
+| M76 | 2026-04-06 | Report Dashboard Server | ⏳ PR pending | — |
