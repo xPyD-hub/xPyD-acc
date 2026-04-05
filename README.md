@@ -49,6 +49,12 @@ xpyd-acc check-kv \
   --kv-dump-b transfer_kv.npz
 ```
 
+## Documentation
+
+- **[User Guide](docs/guide.md)** — installation, subcommand reference, step-by-step diagnostic flow, and results interpretation
+- **[Current Iteration](docs/iterations/current.md)** — M72 milestone status, features, known limitations, and roadmap
+- **[Diagnostic Script](scripts/run_diagnose.sh)** — one-shot `bash scripts/run_diagnose.sh <aggregated_url> <pd_url>`
+
 ## License
 
 TBD
