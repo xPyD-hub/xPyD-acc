@@ -412,7 +412,7 @@
 - `summary.py` module with `SummaryData`, `extract_summary()`, `load_and_summarize()`
 - 22 tests covering all formats, edge cases, and CLI integration
 
-## M50: JUnit XML Export for CI Integration ⬜
+## M50: JUnit XML Export for CI Integration ✅
 - `batch-compare --junit <path>` exports results as JUnit XML
 - Each sample becomes a test case: passing samples → passed, divergent → failed
 - Test suite name includes dataset, model, and timestamp
