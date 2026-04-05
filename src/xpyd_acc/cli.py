@@ -230,6 +230,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Disable response caching entirely",
     )
     bc.add_argument(
+        "--warn-truncated", type=float, default=None,
+        help="Warn (exit 2) if truncated sample ratio exceeds this threshold (0.0–1.0)",
+    )
+    bc.add_argument(
         "--cache-ttl", type=float, default=None,
         help="Cache entry TTL in seconds (default: 3600)",
     )
@@ -1180,6 +1184,9 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         # Send webhook notification if configured
         await _maybe_send_webhook(args, report)
 
+        # Check truncation threshold
+        _check_truncation_threshold(args, report)
+
         fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
         if fail_threshold is not None:
             # When confidence is enabled, use CI lower bound for threshold check
@@ -1287,6 +1294,37 @@ def _maybe_apply_confidence(
         from xpyd_acc.batch_compare import apply_confidence
         level = getattr(args, "confidence_level", 0.95)
         apply_confidence(report, level)
+
+
+def _check_truncation_threshold(
+    args: argparse.Namespace,
+    report: object,
+) -> None:
+    """Check if truncated sample ratio exceeds --warn-truncated threshold.
+
+    Exits with code 2 if the threshold is exceeded.
+    """
+    warn_truncated = getattr(args, "warn_truncated", None)
+    if warn_truncated is None:
+        return
+
+    total = getattr(report, "total_samples", 0)
+    truncated = getattr(report, "truncated_count", 0)
+    if total == 0:
+        return
+
+    ratio = truncated / total
+    if ratio > warn_truncated:
+        print(
+            f"\n⚠ TRUNCATION WARNING: {truncated}/{total} samples truncated "
+            f"({ratio:.1%}) exceeds threshold {warn_truncated:.1%}",
+        )
+        sys.exit(2)
+    elif truncated > 0:
+        print(
+            f"\nTruncation: {truncated}/{total} samples ({ratio:.1%}) "
+            f"within threshold {warn_truncated:.1%}",
+        )
 
 
 def _resolve_fail_threshold(

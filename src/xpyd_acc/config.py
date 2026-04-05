@@ -60,6 +60,7 @@ class BatchConfig:
     cache_ttl: float | None = None
     confidence: bool = False
     confidence_level: float = 0.95
+    warn_truncated: float | None = None
 
 
 @dataclass
@@ -210,6 +211,7 @@ def merge_cli_args(config: AppConfig, args: dict[str, Any], command: str) -> dic
             "deduplicate": config.batch.deduplicate,
             "cache_dir": config.batch.cache_dir,
             "cache_ttl": config.batch.cache_ttl,
+            "warn_truncated": config.batch.warn_truncated,
         }
         for key, config_val in batch_map.items():
             if key in merged and merged[key] is None and config_val is not None:

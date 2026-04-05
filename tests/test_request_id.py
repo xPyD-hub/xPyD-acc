@@ -97,7 +97,7 @@ class TestCollectOutputRequestId:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            text, lp, returned_rid, _usage = await _collect_output(
+            text, lp, returned_rid, _usage, _finish = await _collect_output(
                 "http://test:8000", "hello",
                 request_id=rid,
             )
@@ -131,7 +131,7 @@ class TestCollectOutputRequestId:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            text, lp, returned_rid, _usage = await _collect_output(
+            text, lp, returned_rid, _usage, _finish = await _collect_output(
                 "http://test:8000", "hello",
                 request_id=None,
             )

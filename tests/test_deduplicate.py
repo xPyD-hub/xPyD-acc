@@ -17,7 +17,7 @@ def test_deduplicate_reduces_api_calls() -> None:
         DatasetSample(id="3", prompt="What is 3+3?"),
         DatasetSample(id="4", prompt="What is 2+2?"),  # duplicate
     ]
-    mock_output = ("hello world", [], "", TokenUsage())
+    mock_output = ("hello world", [], "", TokenUsage(), "stop")
 
     with patch(
         "xpyd_acc.batch_compare._collect_output",
@@ -45,7 +45,7 @@ def test_no_deduplicate_sends_all_calls() -> None:
         DatasetSample(id="2", prompt="What is 2+2?"),
         DatasetSample(id="3", prompt="What is 3+3?"),
     ]
-    mock_output = ("hello world", [], "", TokenUsage())
+    mock_output = ("hello world", [], "", TokenUsage(), "stop")
 
     with patch(
         "xpyd_acc.batch_compare._collect_output",
@@ -72,7 +72,7 @@ def test_deduplicate_no_duplicates() -> None:
         DatasetSample(id="2", prompt="What is 3+3?"),
         DatasetSample(id="3", prompt="What is 4+4?"),
     ]
-    mock_output = ("hello world", [], "", TokenUsage())
+    mock_output = ("hello world", [], "", TokenUsage(), "stop")
 
     with patch(
         "xpyd_acc.batch_compare._collect_output",
@@ -99,7 +99,7 @@ def test_deduplicate_preserves_sample_ids() -> None:
         DatasetSample(id="b", prompt="prompt1"),
         DatasetSample(id="c", prompt="prompt2"),
     ]
-    mock_output = ("hello world", [], "", TokenUsage())
+    mock_output = ("hello world", [], "", TokenUsage(), "stop")
 
     with patch(
         "xpyd_acc.batch_compare._collect_output",
@@ -125,7 +125,7 @@ def test_deduplicate_progress_callback() -> None:
         DatasetSample(id="2", prompt="p1"),
         DatasetSample(id="3", prompt="p2"),
     ]
-    mock_output = ("hello", [], "", TokenUsage())
+    mock_output = ("hello", [], "", TokenUsage(), "stop")
     progress_calls: list[tuple[int, int]] = []
 
     def on_progress(done: int, total: int) -> None:

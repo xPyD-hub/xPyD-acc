@@ -19,7 +19,7 @@ from xpyd_acc.response_validate import validate_chat_response
 logger = get_logger("batch_compare")
 
 # Schema version for JSON report serialisation.  Bump when the report shape changes.
-REPORT_SCHEMA_VERSION = 1
+REPORT_SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -49,6 +49,8 @@ class SampleResult:
     context_length: int  # number of prompt tokens (approximated)
     # Map of role to UUID, e.g. {"baseline": "...", "target": "..."}
     request_ids: dict[str, str] = field(default_factory=dict)
+    baseline_finish_reason: str | None = None
+    target_finish_reason: str | None = None
 
     def is_divergent(self) -> bool:
         """Whether this sample diverged."""
@@ -80,6 +82,8 @@ class BatchReport:
     confidence_level: float | None = None
     # Token usage and cost tracking
     usage: UsageSummary | None = None
+    # Truncation tracking
+    truncated_count: int = 0
 
     def to_markdown(self, *, max_divergent_samples: int = 10) -> str:
         """Serialize the report to a Markdown string."""
@@ -104,6 +108,7 @@ class BatchReport:
             "divergence_ci_lower": self.divergence_ci_lower,
             "divergence_ci_upper": self.divergence_ci_upper,
             "confidence_level": self.confidence_level,
+            "truncated_count": self.truncated_count,
             "usage": self.usage.to_dict() if self.usage is not None else None,
             "results": [
                 {
@@ -119,6 +124,8 @@ class BatchReport:
                     "classification": r.classification,
                     "context_length": r.context_length,
                     "request_ids": r.request_ids,
+                    "baseline_finish_reason": r.baseline_finish_reason,
+                    "target_finish_reason": r.target_finish_reason,
                 }
                 for r in self.results
             ],
@@ -162,6 +169,8 @@ def load_report(path: str | Path) -> BatchReport:
                 classification=r.get("classification", "unknown"),
                 context_length=r.get("context_length", 0),
                 request_ids=r.get("request_ids", {}),
+                baseline_finish_reason=r.get("baseline_finish_reason"),
+                target_finish_reason=r.get("target_finish_reason"),
             )
         )
 
@@ -194,6 +203,7 @@ def load_report(path: str | Path) -> BatchReport:
         divergence_ci_upper=data.get("divergence_ci_upper"),
         confidence_level=data.get("confidence_level"),
         usage=usage,
+        truncated_count=data.get("truncated_count", 0),
     )
 
 
@@ -344,7 +354,7 @@ async def _collect_output(
 ) -> tuple[str, list[dict[str, Any]], str]:
     """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list, request_id).
 
-    Returns a tuple of (generated_text, logprobs_per_token, request_id, token_usage).
+    Returns a tuple of (generated_text, logprobs_per_token, request_id, token_usage, finish_reason).
     Each logprob entry has: {"token": str, "logprob": float, "top_logprobs": [...]}.
 
     Args:
@@ -363,7 +373,7 @@ async def _collect_output(
     if cache is not None:
         entry = cache.get(url, model, prompt, sp_dict)
         if entry is not None:
-            return entry.text, entry.logprobs, entry.request_id, TokenUsage()
+            return entry.text, entry.logprobs, entry.request_id, TokenUsage(), None
 
     payload: dict[str, Any] = {
         "model": model,
@@ -380,7 +390,7 @@ async def _collect_output(
         headers["X-Request-ID"] = rid
         logger.debug("Request ID %s for %s", rid, url)
 
-    async def _do_request() -> tuple[str, list[dict[str, Any]], str, TokenUsage]:
+    async def _do_request() -> tuple[str, list[dict[str, Any]], str, TokenUsage, str | None]:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
                 f"{url}/v1/chat/completions", json=payload, headers=headers,
@@ -393,9 +403,10 @@ async def _collect_output(
         text = choice["message"]["content"]
         logprobs_content = choice.get("logprobs", {}).get("content", [])
         usage = extract_usage(data)
-        return text, logprobs_content, rid, usage
+        finish_reason = choice.get("finish_reason")
+        return text, logprobs_content, rid, usage, finish_reason
 
-    text, logprobs_list, out_rid, usage = await retry_async(
+    text, logprobs_list, out_rid, usage, finish_reason = await retry_async(
         _do_request, retries=retries, base_delay=retry_delay,
     )
 
@@ -403,7 +414,7 @@ async def _collect_output(
     if cache is not None:
         cache.put(url, model, prompt, text, logprobs_list, out_rid, sp_dict)
 
-    return text, logprobs_list, out_rid, usage
+    return text, logprobs_list, out_rid, usage, finish_reason
 
 
 async def run_batch(
@@ -467,6 +478,7 @@ async def run_batch(
         str, list[dict[str, Any]], str,
         str, list[dict[str, Any]], str,
         TokenUsage, TokenUsage,
+        str | None, str | None,
     ]:
         """Collect outputs from both endpoints for a single prompt."""
         b_rid = str(uuid.uuid4()) if enable_request_ids else ""
@@ -474,7 +486,7 @@ async def run_batch(
         async with semaphore:
             if rate_limiter is not None:
                 await rate_limiter.acquire()
-            baseline_text, baseline_lp, b_rid_out, b_usage = await _collect_output(
+            baseline_text, baseline_lp, b_rid_out, b_usage, b_finish = await _collect_output(
                 baseline_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
@@ -485,7 +497,7 @@ async def run_batch(
             )
             if rate_limiter is not None:
                 await rate_limiter.acquire()
-            target_text, target_lp, t_rid_out, t_usage = await _collect_output(
+            target_text, target_lp, t_rid_out, t_usage, t_finish = await _collect_output(
                 target_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
@@ -498,6 +510,7 @@ async def run_batch(
             baseline_text, baseline_lp, b_rid_out,
             target_text, target_lp, t_rid_out,
             b_usage, t_usage,
+            b_finish, t_finish,
         )
 
     def _build_result(
@@ -508,6 +521,8 @@ async def run_batch(
         target_text: str,
         target_lp: list[dict[str, Any]],
         t_rid_out: str,
+        baseline_finish_reason: str | None = None,
+        target_finish_reason: str | None = None,
     ) -> SampleResult:
         """Build a SampleResult from collected outputs."""
         b_tokens = _tokenize(baseline_text)
@@ -555,12 +570,15 @@ async def run_batch(
             classification=classification,
             context_length=ctx_len,
             request_ids=req_ids,
+            baseline_finish_reason=baseline_finish_reason,
+            target_finish_reason=target_finish_reason,
         )
 
     _PairResult = tuple[
         str, list[dict[str, Any]], str,
         str, list[dict[str, Any]], str,
         TokenUsage, TokenUsage,
+        str | None, str | None,
     ]
 
     if deduplicate:
@@ -589,8 +607,11 @@ async def run_batch(
         # Build results in original sample order
         all_results: list[SampleResult] = []
         for sample in samples:
-            bt, blp, brid, tt, tlp, trid, _bu, _tu = prompt_to_pair[sample.prompt]
-            all_results.append(_build_result(sample, bt, blp, brid, tt, tlp, trid))
+            bt, blp, brid, tt, tlp, trid, _bu, _tu, bfin, tfin = prompt_to_pair[sample.prompt]
+            all_results.append(_build_result(
+                sample, bt, blp, brid, tt, tlp, trid,
+                baseline_finish_reason=bfin, target_finish_reason=tfin,
+            ))
         results = all_results
 
         report = compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
@@ -598,8 +619,12 @@ async def run_batch(
         return report
 
     async def process_sample(sample: DatasetSample) -> tuple[SampleResult, TokenUsage, TokenUsage]:
-        bt, blp, brid, tt, tlp, trid, b_usage, t_usage = await _collect_pair(sample.prompt)
-        return _build_result(sample, bt, blp, brid, tt, tlp, trid), b_usage, t_usage
+        pair = await _collect_pair(sample.prompt)
+        bt, blp, brid, tt, tlp, trid, b_usage, t_usage, b_fin, t_fin = pair
+        return _build_result(
+            sample, bt, blp, brid, tt, tlp, trid,
+            baseline_finish_reason=b_fin, target_finish_reason=t_fin,
+        ), b_usage, t_usage
 
     total = len(samples)
     usage_summary = UsageSummary()
@@ -675,6 +700,12 @@ def compute_report(
             buckets[bucket]["divergent"] += 1
     report.divergence_by_context_length = buckets
 
+    # Count truncated samples (where either finish_reason is "length")
+    report.truncated_count = sum(
+        1 for r in results
+        if r.baseline_finish_reason == "length" or r.target_finish_reason == "length"
+    )
+
     return report
 
 
@@ -740,6 +771,9 @@ def format_report(report: BatchReport) -> str:
         f"Divergent: {report.divergent_samples} ({report.divergence_rate:.1%})",
     ]
 
+    if report.truncated_count > 0:
+        lines.append(f"Truncated: {report.truncated_count} ⚠️")
+
     if report.divergence_ci_lower is not None and report.divergence_ci_upper is not None:
         lines.append(
             f"  {report.confidence_level:.0%} CI: "
@@ -803,6 +837,8 @@ def _to_markdown(report: BatchReport, *, max_divergent_samples: int = 10) -> str
     lines.append(f"| Matches | {report.match_samples} |")
     lines.append(f"| Divergent | {report.divergent_samples} |")
     lines.append(f"| Divergence rate | {report.divergence_rate:.1%} |")
+    if report.truncated_count > 0:
+        lines.append(f"| Truncated samples ⚠️ | {report.truncated_count} |")
     if report.divergence_ci_lower is not None and report.divergence_ci_upper is not None:
         lines.append(
             f"| {report.confidence_level:.0%} CI | "
@@ -858,6 +894,8 @@ def _to_markdown(report: BatchReport, *, max_divergent_samples: int = 10) -> str
                 lines.append(f"### Sample {r.sample_id}")
                 lines.append("")
                 lines.append(f"- **Classification:** {r.classification}")
+                if r.baseline_finish_reason == "length" or r.target_finish_reason == "length":
+                    lines.append("- **⚠️ Truncated output detected**")
                 lines.append(
                     f"- **First divergence at token:** {r.first_divergence_index}"
                 )
@@ -1029,7 +1067,7 @@ async def run_multi_batch(
 
     async def collect_baseline(sample: DatasetSample) -> tuple[str, str, list[dict[str, Any]]]:
         async with semaphore:
-            text, lp, _rid, b_usage = await _collect_output(
+            text, lp, _rid, b_usage, _finish = await _collect_output(
                 baseline_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
@@ -1054,7 +1092,7 @@ async def run_multi_batch(
     ) -> SampleResult:
         nonlocal completed
         async with semaphore:
-            target_text, target_lp, _rid, t_usage = await _collect_output(
+            target_text, target_lp, _rid, t_usage, _t_finish = await _collect_output(
                 target_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
