@@ -29,7 +29,7 @@ from .benchmark import (
 )
 from .compare import _run_compare_logprobs, _run_compare_output, _run_compare_streaming
 from .config_cmd import _run_completion, _run_config, _run_init, _run_profiles
-from .data import _run_cache, _run_dataset_stats, _run_history, _run_snapshot
+from .data import _run_cache, _run_dataset_stats, _run_history, _run_serve, _run_snapshot
 from .diagnose import _run_check_kv, _run_detect, _run_diagnose, _run_healthcheck
 from .report import (
     _run_ab_test,
@@ -120,6 +120,7 @@ def main(argv: list[str] | None = None) -> None:
         "root-cause": lambda: handle_root_cause(args),
         "token-diff": lambda: handle_token_diff(args),
         "filter": lambda: _run_filter(args),
+        "serve": lambda: _run_serve(args),
         "init": lambda: _run_init(args),
         "config": lambda: _run_config(args),
         "profiles": lambda: _run_profiles(config),

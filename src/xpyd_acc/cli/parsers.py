@@ -45,6 +45,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_reproducibility(sub)
     _register_dataset_stats(sub)
     _register_cache(sub)
+    _register_serve(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -518,4 +519,15 @@ def _register_token_diff(sub):
     td_cmd.add_argument(
         "--json", dest="td_json", default=None,
         help="Export diff as JSON",
+    )
+
+
+def _register_serve(sub):
+    sv = sub.add_parser("serve", help="Launch interactive report dashboard server")
+    sv.add_argument("--report", required=True, help="Path to batch report JSON file")
+    sv.add_argument("--port", type=int, default=8080, help="Server port (default: 8080)")
+    sv.add_argument("--host", default="localhost", help="Server host (default: localhost)")
+    sv.add_argument(
+        "--open", action="store_true", default=False, dest="open_browser",
+        help="Auto-open browser on start",
     )

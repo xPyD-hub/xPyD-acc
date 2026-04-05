@@ -366,3 +366,24 @@ def _run_dataset_stats(args: argparse.Namespace) -> None:
     if args.json_path:
         report.to_json(args.json_path)
         print(f"\nExported to {args.json_path}")
+
+
+def _run_serve(args: argparse.Namespace) -> None:
+    """Launch report dashboard server."""
+    from xpyd_acc.serve import run_server
+
+    server = run_server(
+        args.report,
+        host=args.host,
+        port=args.port,
+        open_browser=args.open_browser,
+    )
+    url = f"http://{args.host}:{args.port}"
+    print(f"Dashboard server running at {url}")
+    print("Press Ctrl+C to stop")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nServer stopped.")
+    finally:
+        server.server_close()
