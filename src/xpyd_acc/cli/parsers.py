@@ -47,6 +47,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_cache(sub)
     _register_serve(sub)
     _register_prometheus(sub)
+    _register_grafana_dashboard(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -548,4 +549,25 @@ def _register_prometheus(sub):
     pm.add_argument(
         "--job", default="xpyd_acc",
         help="Job label for Pushgateway (default: xpyd_acc)",
+    )
+
+
+def _register_grafana_dashboard(sub):
+    gd = sub.add_parser(
+        "grafana-dashboard", help="Generate Grafana dashboard JSON template",
+    )
+    gd.add_argument(
+        "--report", default=None,
+        help="Path to batch report JSON file (optional)",
+    )
+    gd.add_argument(
+        "--output", required=True, help="Path to write dashboard JSON",
+    )
+    gd.add_argument(
+        "--datasource", default="Prometheus",
+        help="Prometheus datasource name (default: Prometheus)",
+    )
+    gd.add_argument(
+        "--title", default="xPyD-acc Divergence Dashboard",
+        help="Dashboard title",
     )
