@@ -8,6 +8,8 @@ from unittest.mock import patch
 from xpyd_acc.env import (
     ENV_API_KEY,
     ENV_BASELINE_URL,
+    ENV_CONCURRENCY,
+    ENV_MAX_TOKENS,
     ENV_MODEL,
     ENV_TARGET_URL,
     ENV_TIMEOUT,
@@ -114,3 +116,29 @@ class TestCliEnvIntegration:
         with patch.dict(os.environ, {}, clear=True):
             defaults = get_env_defaults()
         assert defaults.timeout is None
+
+    def test_max_tokens_env_var(self) -> None:
+        """Verify XPYD_ACC_MAX_TOKENS env var is read correctly."""
+        env = {ENV_MAX_TOKENS: "128"}
+        with patch.dict(os.environ, env, clear=True):
+            defaults = get_env_defaults()
+        assert defaults.max_tokens == 128
+
+    def test_max_tokens_env_var_not_set(self) -> None:
+        """Verify max_tokens is None when env var not set."""
+        with patch.dict(os.environ, {}, clear=True):
+            defaults = get_env_defaults()
+        assert defaults.max_tokens is None
+
+    def test_concurrency_env_var(self) -> None:
+        """Verify XPYD_ACC_CONCURRENCY env var is read correctly."""
+        env = {ENV_CONCURRENCY: "10"}
+        with patch.dict(os.environ, env, clear=True):
+            defaults = get_env_defaults()
+        assert defaults.concurrency == 10
+
+    def test_concurrency_env_var_not_set(self) -> None:
+        """Verify concurrency is None when env var not set."""
+        with patch.dict(os.environ, {}, clear=True):
+            defaults = get_env_defaults()
+        assert defaults.concurrency is None

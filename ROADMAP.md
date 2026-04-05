@@ -551,3 +551,11 @@
 - Rich terminal output with consistency summary
 - `reproducibility.py` module with `run_reproducibility()` async function
 - 18 tests covering single/dual endpoint, metrics, edge cases, JSON export, CLI integration
+
+## M63: Environment Variable Support for Max Tokens & Concurrency ✅
+- `XPYD_ACC_MAX_TOKENS` environment variable for default max tokens
+- `XPYD_ACC_CONCURRENCY` environment variable for default concurrency
+- Priority chain: CLI flags > env vars > config file > defaults
+- `EnvDefaults` extended with `max_tokens` and `concurrency` fields
+- CLI applies env values before hardcoded defaults
+- 4 new tests covering env var read and unset behavior

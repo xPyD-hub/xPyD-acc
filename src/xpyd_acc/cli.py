@@ -769,6 +769,10 @@ def main(argv: list[str] | None = None) -> None:
         args.timeout = env.timeout
     if env.rate_limit is not None and hasattr(args, "rate_limit") and args.rate_limit is None:
         args.rate_limit = env.rate_limit
+    if env.max_tokens is not None and hasattr(args, "max_tokens") and args.max_tokens is None:
+        args.max_tokens = env.max_tokens
+    if env.concurrency is not None and hasattr(args, "concurrency") and args.concurrency is None:
+        args.concurrency = env.concurrency
 
     # Apply hardcoded defaults for any remaining None values
     _FINAL_DEFAULTS: dict[str, object] = {
