@@ -705,7 +705,7 @@
 - `token_diff.py` module: `build_token_diff()`, `format_token_diff()`, `TokenDiffLine`
 - 12 tests covering alignment, coloring, edge cases, plain format, CLI integration
 
-## M76: Report Dashboard Server
+## M76: Report Dashboard Server ✅
 - `xpyd-acc serve --report <path>` launches a local HTTP server with interactive dashboard
 - Single-page HTML app served from bundled template (no external dependencies)
 - Summary cards: divergence rate, sample count, top divergent samples
@@ -716,3 +716,14 @@
 - `--open` flag to auto-open browser
 - `serve.py` module with `run_server()` using stdlib `http.server`
 - 10 tests covering template rendering, route handling, report loading
+
+## M77: Prometheus Metrics Export
+- `batch-compare --prometheus <path>` exports results in Prometheus text exposition format
+- Metrics: `xpyd_acc_divergence_rate`, `xpyd_acc_total_samples`, `xpyd_acc_divergent_samples`, `xpyd_acc_truncated_samples`
+- Per-classification gauge: `xpyd_acc_classification_count{classification="likely_bug|likely_uncertainty|match|unknown"}`
+- Optional cost metrics: `xpyd_acc_total_cost_usd`, `xpyd_acc_total_tokens`
+- Labels: model, dataset (extracted from report metadata)
+- `xpyd-acc prometheus --report <path>` standalone subcommand to convert existing report
+- `--push-gateway <url>` flag to push metrics to Prometheus Pushgateway
+- `prometheus.py` module: `to_prometheus()`, `push_to_gateway()`
+- 10 tests covering metric generation, labels, push mock, CLI integration
