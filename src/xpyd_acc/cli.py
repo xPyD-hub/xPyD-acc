@@ -257,6 +257,14 @@ def main(argv: list[str] | None = None) -> None:
         "--output-price", type=float, default=None,
         help="Output token price per 1M tokens (USD) for cost estimation",
     )
+    bc.add_argument(
+        "--checkpoint", default=None, metavar="PATH",
+        help="Checkpoint file path for resumable runs (saves progress, resumes on restart)",
+    )
+    bc.add_argument(
+        "--checkpoint-clear", action="store_true", default=False,
+        help="Delete existing checkpoint file before starting (fresh run)",
+    )
 
     # Cache management subcommand
     cache_cmd = sub.add_parser("cache", help="Manage response cache")
