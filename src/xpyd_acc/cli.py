@@ -593,6 +593,21 @@ def main(argv: list[str] | None = None) -> None:
         help="Export analysis as JSON",
     )
 
+    # --- fingerprint ---
+    fp_cmd = sub.add_parser("fingerprint", help="Model fingerprinting via deterministic probes")
+    fp_cmd.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    fp_cmd.add_argument("--target", default=None, help="Target endpoint URL (compare two)")
+    fp_cmd.add_argument("--model", default="default", help="Model name")
+    fp_cmd.add_argument("--api-key", default=None, help="API key")
+    fp_cmd.add_argument("--max-tokens", type=int, default=16, help="Max tokens per probe")
+    fp_cmd.add_argument(
+        "--json", dest="fp_json", default=None,
+        help="Export fingerprint(s) as JSON",
+    )
+    fp_cmd.add_argument("--retries", type=int, default=3, help="Retry count")
+    fp_cmd.add_argument("--retry-delay", type=float, default=1.0, help="Retry base delay")
+    fp_cmd.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout per request")
+
     args = parser.parse_args(argv)
 
     # Setup logging from verbosity flags
@@ -648,6 +663,11 @@ def main(argv: list[str] | None = None) -> None:
     # Handle 'explain' subcommand (M52)
     if args.command == "explain":
         _run_explain(args)
+        return
+
+    # Handle 'fingerprint' subcommand (M55)
+    if args.command == "fingerprint":
+        _run_fingerprint(args)
         return
 
     # Handle 'filter' subcommand (M42)
@@ -2453,3 +2473,67 @@ def _run_explain(args: argparse.Namespace) -> None:
         print(f"Exported to {args.explain_json}")
     else:
         print(format_explain(result))
+
+
+def _run_fingerprint(args: argparse.Namespace) -> None:
+    """Handle the 'fingerprint' subcommand (M55)."""
+    import asyncio
+    import json as _json
+    from pathlib import Path
+
+    from xpyd_acc.fingerprint import collect_fingerprint, compare_fingerprints
+
+    api_key = args.api_key or "no-key"
+
+    async def _go():
+        fp_baseline = await collect_fingerprint(
+            args.baseline,
+            api_key=api_key,
+            model=args.model,
+            max_tokens=args.max_tokens,
+            timeout=args.timeout,
+            retries=args.retries,
+            retry_delay=args.retry_delay,
+        )
+        print(f"Baseline fingerprint: {fp_baseline.hash}  ({fp_baseline.endpoint})")
+
+        result: dict = fp_baseline.to_dict()
+
+        if args.target:
+            fp_target = await collect_fingerprint(
+                args.target,
+                api_key=api_key,
+                model=args.model,
+                max_tokens=args.max_tokens,
+                timeout=args.timeout,
+                retries=args.retries,
+                retry_delay=args.retry_delay,
+            )
+            print(f"Target fingerprint:   {fp_target.hash}  ({fp_target.endpoint})")
+
+            cmp = compare_fingerprints(fp_baseline, fp_target)
+            if cmp.match:
+                print("\n✅ Fingerprints MATCH — endpoints produce identical probe outputs")
+            else:
+                ndiff = len(cmp.differing_probes)
+                print(
+                    f"\n❌ Fingerprints DIFFER — "
+                    f"{ndiff}/{cmp.total_probes} probes diverged"
+                )
+                for d in cmp.differing_probes:
+                    print(f"  Probe {d['probe_index']}: {d['prompt'][:40]}")
+                    print(f"    baseline: {d['output_a'][:60]}")
+                    print(f"    target:   {d['output_b'][:60]}")
+            result = {
+                "baseline": fp_baseline.to_dict(),
+                "target": fp_target.to_dict(),
+                "comparison": cmp.to_dict(),
+            }
+            if not cmp.match:
+                raise SystemExit(1)
+
+        if args.fp_json:
+            Path(args.fp_json).write_text(_json.dumps(result, indent=2))
+            print(f"\nExported to {args.fp_json}")
+
+    asyncio.run(_go())
