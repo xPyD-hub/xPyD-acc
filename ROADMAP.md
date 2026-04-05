@@ -559,3 +559,14 @@
 - `EnvDefaults` extended with `max_tokens` and `concurrency` fields
 - CLI applies env values before hardcoded defaults
 - 4 new tests covering env var read and unset behavior
+
+## M64: Checkpoint Resume for Batch Comparison ✅
+- `batch-compare --checkpoint <path>` saves progress to a checkpoint file during batch runs
+- `--checkpoint-clear` deletes existing checkpoint before starting fresh
+- `Checkpoint` dataclass with completed_ids, serialised results, run metadata
+- `save_checkpoint()` uses atomic write-then-rename for crash safety
+- `load_checkpoint()` with corrupt file handling (returns None)
+- `validate_checkpoint()` verifies baseline_url, target_url, model, total_samples match
+- `result_to_dict()` / `dict_to_result()` for SampleResult serialisation round-trip
+- `checkpoint.py` module with full save/load/validate/serialise API
+- 19 tests covering dataclass, save/load, validation, serialisation, CLI integration
