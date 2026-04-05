@@ -556,6 +556,14 @@ def main(argv: list[str] | None = None) -> None:
         help="Output format (default: oneline)",
     )
 
+    explain_cmd = sub.add_parser("explain", help="Deep-dive analysis of a single sample")
+    explain_cmd.add_argument("--report", required=True, help="Path to batch report JSON")
+    explain_cmd.add_argument("--sample", required=True, help="Sample ID to analyze")
+    explain_cmd.add_argument(
+        "--json", dest="explain_json", default=None,
+        help="Export analysis as JSON",
+    )
+
     args = parser.parse_args(argv)
 
     # Setup logging from verbosity flags
@@ -601,6 +609,11 @@ def main(argv: list[str] | None = None) -> None:
     # Handle 'summary' subcommand (M48)
     if args.command == "summary":
         _run_summary(args)
+        return
+
+    # Handle 'explain' subcommand (M52)
+    if args.command == "explain":
+        _run_explain(args)
         return
 
     # Handle 'filter' subcommand (M42)
@@ -2266,3 +2279,24 @@ def _run_cluster(args: argparse.Namespace) -> None:
     if args.cluster_json:
         result.to_json(args.cluster_json)
         console.print(f"\n  Exported to {args.cluster_json}")
+
+
+def _run_explain(args: argparse.Namespace) -> None:
+    """Handle the 'explain' subcommand."""
+    from xpyd_acc.explain import format_explain, load_and_explain
+
+    try:
+        result = load_and_explain(args.report, args.sample)
+    except FileNotFoundError:
+        print(f"Error: report file not found: {args.report}")
+        raise SystemExit(1)
+    except KeyError as exc:
+        print(f"Error: {exc}")
+        raise SystemExit(1)
+
+    if args.explain_json:
+        from pathlib import Path
+        Path(args.explain_json).write_text(result.to_json())
+        print(f"Exported to {args.explain_json}")
+    else:
+        print(format_explain(result))
