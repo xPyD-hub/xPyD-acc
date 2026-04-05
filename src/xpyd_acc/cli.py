@@ -444,6 +444,20 @@ def main(argv: list[str] | None = None) -> None:
         help="Exit 1 if divergence rate increased in the latest run",
     )
     hist_trend.add_argument("--history-dir", default=None, help="History directory")
+    hist_purge = hist_sub.add_parser("purge", help="Remove old history entries")
+    hist_purge.add_argument(
+        "--older-than", type=int, required=True,
+        help="Remove entries older than N days",
+    )
+    hist_purge.add_argument(
+        "--keep-last", type=int, default=0,
+        help="Always keep the most recent N entries (default: 0)",
+    )
+    hist_purge.add_argument(
+        "--dry-run", action="store_true", default=False,
+        help="Show what would be removed without deleting",
+    )
+    hist_purge.add_argument("--history-dir", default=None, help="History directory")
 
     # benchmark
     bm = sub.add_parser("benchmark", help="Benchmark endpoint latency")
@@ -2030,8 +2044,31 @@ def _run_history(args: argparse.Namespace) -> None:
         elif args.fail_on_regression:
             print("\nPASS: No regression detected.")
 
+    elif args.history_action == "purge":
+        removed = store.purge(
+            older_than_days=args.older_than,
+            keep_last=args.keep_last,
+            dry_run=args.dry_run,
+        )
+        action = "Would remove" if args.dry_run else "Removed"
+        if not removed:
+            print("Nothing to purge.")
+        else:
+            console = Console()
+            table = Table(title=f"{action} {len(removed)} entries")
+            table.add_column("ID", style="dim")
+            table.add_column("Timestamp")
+            table.add_column("Tag")
+            table.add_column("Rate", justify="right")
+            for e in removed:
+                table.add_row(
+                    e.entry_id, e.timestamp[:19], e.tag or "-",
+                    f"{e.divergence_rate:.4f}",
+                )
+            console.print(table)
+
     else:
-        print("Usage: xpyd-acc history {save|list|trend}")
+        print("Usage: xpyd-acc history {save|list|trend|purge}")
 
 
 def _run_summary(args: argparse.Namespace) -> None:

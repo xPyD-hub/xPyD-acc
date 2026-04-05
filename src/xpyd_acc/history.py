@@ -118,6 +118,52 @@ class HistoryStore:
             prev_rate = entry.divergence_rate
         return result
 
+    def purge(
+        self,
+        older_than_days: int | None = None,
+        keep_last: int = 0,
+        dry_run: bool = False,
+    ) -> list[HistoryEntry]:
+        """Remove old history entries.
+
+        Args:
+            older_than_days: Remove entries older than this many days.
+            keep_last: Always keep at least this many most recent entries.
+            dry_run: If True, return entries that would be removed without deleting.
+
+        Returns:
+            List of entries that were (or would be) removed.
+        """
+        entries = self.list_entries()
+        if not entries:
+            return []
+
+        # Determine which entries to protect (keep_last most recent)
+        protected: set[str] = set()
+        if keep_last > 0:
+            for entry in entries[-keep_last:]:
+                protected.add(entry.entry_id)
+
+        to_remove: list[HistoryEntry] = []
+        now = datetime.now(timezone.utc)
+
+        for entry in entries:
+            if entry.entry_id in protected:
+                continue
+            if older_than_days is not None:
+                entry_time = datetime.fromisoformat(entry.timestamp)
+                age_days = (now - entry_time).total_seconds() / 86400
+                if age_days > older_than_days:
+                    to_remove.append(entry)
+
+        if not dry_run:
+            for entry in to_remove:
+                entry_file = self.history_dir / f"{entry.entry_id}.json"
+                if entry_file.exists():
+                    entry_file.unlink()
+
+        return to_remove
+
     def has_regression(self, last_n: int | None = None) -> bool:
         """Check if the most recent entry shows increased divergence vs previous."""
         trend_data = self.trend(last_n=last_n)
