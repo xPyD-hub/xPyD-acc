@@ -1123,6 +1123,8 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 rate_limiter=_rl,
                 normalizers=resolved_normalizers,
                 skip_validation=getattr(args, "skip_validation", False),
+                checkpoint_path=getattr(args, "checkpoint", None),
+                checkpoint_clear=getattr(args, "checkpoint_clear", False),
             )
     finally:
         if progress_ctx is not None:

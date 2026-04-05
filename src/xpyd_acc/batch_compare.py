@@ -439,6 +439,8 @@ async def run_batch(
     rate_limiter: Any | None = None,
     normalizers: list | None = None,
     skip_validation: bool = False,
+    checkpoint_path: str | None = None,
+    checkpoint_clear: bool = False,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -450,8 +452,53 @@ async def run_batch(
         deduplicate: If True, send each unique prompt only once per endpoint
             and reuse results for duplicate prompts. Saves API calls.
         skip_validation: If True, skip response schema validation.
+        checkpoint_path: If set, save/load checkpoint for resumable runs.
+        checkpoint_clear: If True, delete existing checkpoint before starting.
     """
     logger.info("Starting batch comparison: %d samples, concurrency=%d", len(samples), concurrency)
+
+    # --- Checkpoint handling ---
+    from xpyd_acc.checkpoint import (
+        Checkpoint,
+        dict_to_result,
+        load_checkpoint,
+        result_to_dict,
+        save_checkpoint,
+        validate_checkpoint,
+    )
+
+    checkpoint: Checkpoint | None = None
+    resumed_results: dict[str, SampleResult] = {}
+
+    if checkpoint_path is not None:
+        cp_path = Path(checkpoint_path)
+        if checkpoint_clear and cp_path.exists():
+            cp_path.unlink()
+            logger.info("Checkpoint cleared: %s", cp_path)
+
+        loaded = load_checkpoint(cp_path)
+        if loaded is not None:
+            if validate_checkpoint(
+                loaded, baseline_url, target_url, model, len(samples),
+            ):
+                checkpoint = loaded
+                for sid, rd in checkpoint.results.items():
+                    resumed_results[sid] = dict_to_result(rd)
+                logger.info(
+                    "Resuming from checkpoint: %d/%d samples already completed",
+                    len(resumed_results), len(samples),
+                )
+            else:
+                logger.warning("Checkpoint discarded (parameter mismatch)")
+                loaded = None
+
+        if checkpoint is None:
+            checkpoint = Checkpoint(
+                baseline_url=baseline_url,
+                target_url=target_url,
+                model=model,
+                total_samples=len(samples),
+            )
 
     # Deduplication: group samples by prompt, send unique prompts only once
     if deduplicate:
@@ -629,21 +676,58 @@ async def run_batch(
     total = len(samples)
     usage_summary = UsageSummary()
 
+    # Separate resumed vs pending samples
+    pending_samples = [s for s in samples if s.id not in resumed_results]
+    if resumed_results:
+        logger.info(
+            "Skipping %d already-completed samples from checkpoint",
+            len(resumed_results),
+        )
+        completed = len(resumed_results)
+
     async def _tracked_sample(sample: DatasetSample) -> tuple[SampleResult, TokenUsage, TokenUsage]:
         nonlocal completed
         result_tuple = await process_sample(sample)
         completed += 1
         if on_progress is not None:
             on_progress(completed, total)
+        # Save checkpoint after each sample
+        if checkpoint is not None and checkpoint_path is not None:
+            sr_result = result_tuple[0]
+            checkpoint.add_result(sr_result.sample_id, result_to_dict(sr_result))
+            save_checkpoint(checkpoint, checkpoint_path)
         return result_tuple
 
-    tasks = [_tracked_sample(s) for s in samples]
+    tasks = [_tracked_sample(s) for s in pending_samples]
     raw_results = await asyncio.gather(*tasks)
     results = []
+    # Add resumed results first (in original sample order)
+    for s in samples:
+        if s.id in resumed_results:
+            results.append(resumed_results[s.id])
+        # pending results added below in order
+    # Now add freshly computed results
+    pending_results = []
     for sr, b_u, t_u in raw_results:
-        results.append(sr)
+        pending_results.append(sr)
         usage_summary.add(b_u)
         usage_summary.add(t_u)
+
+    # Rebuild results in original sample order
+    pending_map = {sr.sample_id: sr for sr in pending_results}
+    results = []
+    for s in samples:
+        if s.id in resumed_results:
+            results.append(resumed_results[s.id])
+        elif s.id in pending_map:
+            results.append(pending_map[s.id])
+
+    # Clean up checkpoint on successful completion
+    if checkpoint_path is not None:
+        cp_path = Path(checkpoint_path)
+        if cp_path.exists():
+            cp_path.unlink()
+            logger.info("Checkpoint removed after successful completion")
 
     report = compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
     report.usage = usage_summary

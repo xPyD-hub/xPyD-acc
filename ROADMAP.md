@@ -570,3 +570,15 @@
 - `result_to_dict()` / `dict_to_result()` for SampleResult serialisation round-trip
 - `checkpoint.py` module with full save/load/validate/serialise API
 - 19 tests covering dataclass, save/load, validation, serialisation, CLI integration
+
+## M65: Checkpoint Integration into Batch Compare ✅
+- `run_batch()` accepts `checkpoint_path` and `checkpoint_clear` parameters
+- On start: loads existing checkpoint, validates against current run parameters
+- Mismatched checkpoints are discarded with warning
+- Completed samples from checkpoint are skipped (not re-sent to API)
+- Checkpoint saved after each sample completion (crash-safe incremental resume)
+- `--checkpoint-clear` deletes existing checkpoint before starting fresh
+- Checkpoint file deleted on successful completion of all samples
+- CLI flags `--checkpoint` and `--checkpoint-clear` wired through to `run_batch()`
+- Results maintained in original sample order regardless of resume
+- 12 tests covering resume, skip, mismatch discard, clear, cleanup, ordering
