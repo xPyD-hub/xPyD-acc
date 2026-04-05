@@ -612,6 +612,11 @@ def main(argv: list[str] | None = None) -> None:
     fp_cmd.add_argument("--retry-delay", type=float, default=1.0, help="Retry base delay")
     fp_cmd.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout per request")
 
+    ds = sub.add_parser("dataset-stats", help="Analyze dataset before batch comparison")
+    ds.add_argument("dataset", help="Path to dataset file (JSONL, CSV, JSON)")
+    ds.add_argument("--template", help="Path to prompt template file")
+    ds.add_argument("--json", dest="json_path", help="Export stats as JSON")
+
     args = parser.parse_args(argv)
 
     # Setup logging from verbosity flags
@@ -784,6 +789,8 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(_run_benchmark(args))
     elif args.command == "bisect":
         asyncio.run(_run_bisect(args))
+    elif args.command == "dataset-stats":
+        _run_dataset_stats(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -2544,3 +2551,18 @@ def _run_fingerprint(args: argparse.Namespace) -> None:
             print(f"\nExported to {args.fp_json}")
 
     asyncio.run(_go())
+
+
+def _run_dataset_stats(args: argparse.Namespace) -> None:
+    """Run dataset statistics analysis."""
+    from xpyd_acc.batch_compare import load_dataset
+    from xpyd_acc.dataset_stats import compute_stats, print_stats
+    from xpyd_acc.templates import load_template
+
+    samples = load_dataset(args.dataset)
+    template = load_template(args.template) if args.template else None
+    report = compute_stats(samples, template)
+    print_stats(report)
+    if args.json_path:
+        report.to_json(args.json_path)
+        print(f"\nExported to {args.json_path}")

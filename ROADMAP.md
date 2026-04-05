@@ -492,3 +492,14 @@
 - `--skip-validation` CLI flag for non-standard endpoints
 - TOML config: `[defaults] skip_validation = true`
 - 12 tests covering valid responses, missing fields, malformed structure, skip flag
+
+## M58: Dataset Statistics Command ✅
+- `xpyd-acc dataset-stats <path>` analyzes dataset before batch comparison
+- Character-level stats: min, max, mean, median, p95
+- Estimated token counts using word/0.75 heuristic
+- Duplicate prompt detection and count
+- Template rendering support via `--template <path>`
+- JSON export via `--json <path>`
+- Rich terminal output with stats tables
+- Works with JSONL, CSV, JSON array formats
+- 15 tests covering stats computation, duplicates, template, JSON export, CLI
