@@ -16,6 +16,9 @@ from xpyd_acc.log import get_logger
 
 logger = get_logger("batch_compare")
 
+# Schema version for JSON report serialisation.  Bump when the report shape changes.
+REPORT_SCHEMA_VERSION = 1
+
 
 @dataclass
 class DatasetSample:
@@ -81,6 +84,7 @@ class BatchReport:
     def to_json(self) -> str:
         """Serialize the report to a JSON string."""
         data: dict[str, Any] = {
+            "schema_version": REPORT_SCHEMA_VERSION,
             "total_samples": self.total_samples,
             "divergent_samples": self.divergent_samples,
             "match_samples": self.match_samples,
@@ -115,6 +119,65 @@ class BatchReport:
             ],
         }
         return json.dumps(data, indent=2)
+
+
+def load_report(path: str | Path) -> BatchReport:
+    """Load a :class:`BatchReport` from a JSON file.
+
+    Validates the ``schema_version`` field.  Reports without a version are
+    treated as version 1 (backward-compatible).  If the version is newer than
+    the current :data:`REPORT_SCHEMA_VERSION`, a :class:`ValueError` is raised
+    so callers know the report was produced by a newer release.
+    """
+    path = Path(path)
+    with path.open() as f:
+        data = json.load(f)
+
+    version = data.get("schema_version", 1)
+    if version > REPORT_SCHEMA_VERSION:
+        msg = (
+            f"Report schema version {version} is newer than supported version "
+            f"{REPORT_SCHEMA_VERSION}. Please upgrade xpyd-acc."
+        )
+        raise ValueError(msg)
+
+    results: list[SampleResult] = []
+    for r in data.get("results", []):
+        results.append(
+            SampleResult(
+                sample_id=r["sample_id"],
+                prompt=r["prompt"],
+                baseline_output=r["baseline_output"],
+                target_output=r["target_output"],
+                exact_match=r["exact_match"],
+                first_divergence_index=r.get("first_divergence_index"),
+                baseline_logprob_at_divergence=r.get("baseline_logprob_at_divergence"),
+                target_logprob_at_divergence=r.get("target_logprob_at_divergence"),
+                logprob_gap=r.get("logprob_gap"),
+                classification=r.get("classification", "unknown"),
+                context_length=r.get("context_length", 0),
+                request_ids=r.get("request_ids", {}),
+            )
+        )
+
+    return BatchReport(
+        total_samples=data["total_samples"],
+        divergent_samples=data["divergent_samples"],
+        match_samples=data["match_samples"],
+        divergence_rate=data["divergence_rate"],
+        results=results,
+        divergence_index_mean=data.get("divergence_index_mean"),
+        divergence_index_median=data.get("divergence_index_median"),
+        logprob_gap_mean=data.get("logprob_gap_mean"),
+        logprob_gap_median=data.get("logprob_gap_median"),
+        likely_bugs=data.get("likely_bugs", 0),
+        likely_uncertainty=data.get("likely_uncertainty", 0),
+        unknown_classification=data.get("unknown_classification", 0),
+        divergence_by_context_length=data.get("divergence_by_context_length", {}),
+        divergence_ci_lower=data.get("divergence_ci_lower"),
+        divergence_ci_upper=data.get("divergence_ci_upper"),
+        confidence_level=data.get("confidence_level"),
+    )
 
 
 def load_dataset(path: str | Path) -> list[DatasetSample]:

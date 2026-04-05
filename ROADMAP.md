@@ -473,3 +473,13 @@
 - Exit 0 on match, exit 1 on mismatch (CI-friendly)
 - `fingerprint.py` module: `collect_fingerprint()`, `compare_fingerprints()`, dataclasses
 - 17 tests covering hash computation, comparison, mocked collection, edge cases
+
+## M56: Report Schema Version & Backward-Compatible Loading ✅
+- `REPORT_SCHEMA_VERSION` constant in `batch_compare.py` (starts at 1)
+- `to_json()` includes `schema_version` field in every exported report
+- `load_report(path)` function: deserialize JSON back to `BatchReport`
+- Backward compatible: reports without `schema_version` treated as version 1
+- Future-proof: raises `ValueError` if report version is newer than supported
+- Missing optional fields default gracefully (classification, context_length, request_ids)
+- Round-trip fidelity: confidence intervals, request IDs, all statistics preserved
+- 8 tests covering round-trip, missing version, future version, minimal fields, CI fields
