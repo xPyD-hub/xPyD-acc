@@ -440,3 +440,14 @@
 - `--json <path>` export for programmatic use
 - Error handling for missing sample ID and missing report file
 - 15 tests covering all functionality and CLI integration
+
+## M53: Confidence Intervals for Divergence Rate
+- `batch-compare --confidence` flag adds 95% confidence interval to divergence rate
+- Wilson score interval for binomial proportion (works well with small samples)
+- `BatchReport.divergence_ci_lower` and `divergence_ci_upper` fields
+- JSON/Markdown/JUnit exports include CI when computed
+- `--confidence-level <float>` to change from default 0.95
+- `confidence.py` module with `wilson_ci(successes, total, confidence)` function
+- `--fail-threshold` integrates with CI: fail only if CI lower bound exceeds threshold
+- Useful for deciding if sample size is large enough to trust the divergence rate
+- Tests for Wilson CI math, integration with batch report, edge cases (0%, 100%, n=1)
