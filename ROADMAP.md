@@ -321,7 +321,7 @@
 - Clear error messages for missing `prompt` column/field, non-array JSON, non-object items
 - 11 tests covering all formats, error cases, and fallback behavior
 
-## M41: Webhook Notifications for Divergence Alerts
+## M41: Webhook Notifications for Divergence Alerts ✅
 - `--webhook <url>` flag for `batch-compare`
 - POST JSON payload: event, divergence_detected, total_samples, divergent_samples, divergence_rate
 - `--webhook-header 'Key: Value'` for custom headers (repeatable)
@@ -332,3 +332,15 @@
 - `notify.py` module with `send_webhook()`, `resolve_webhook_config()`
 - Reuses existing retry logic for delivery reliability
 - Tests for webhook send, skip, retry failure, header parsing, config resolution
+
+## M42: Sample Filtering for Batch Reports
+- `xpyd-acc filter --input <report.json> --output <filtered.json>` filters samples from existing reports
+- `--classification <value>` filter by classification (likely_bug, likely_uncertainty, match, unknown)
+- `--divergent-only` / `--matched-only` quick filters
+- `--min-logprob-gap <float>` filter samples with logprob gap above threshold
+- `--max-logprob-gap <float>` filter samples with logprob gap below threshold
+- `--min-context-length <int>` / `--max-context-length <int>` filter by context length
+- `--search <text>` filter samples where prompt or output contains text (case-insensitive)
+- Recalculates report statistics for the filtered subset
+- Rich terminal summary of filtered results
+- Tests for all filter criteria and combinations

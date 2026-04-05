@@ -417,6 +417,43 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     # config validate
+        # Filter subcommand (M42)
+    flt = sub.add_parser("filter", help="Filter samples from a batch report")
+    flt.add_argument("--input", required=True, help="Input batch report JSON")
+    flt.add_argument("--output", required=True, help="Output filtered report JSON")
+    flt.add_argument(
+        "--classification", default=None,
+        help="Filter by classification (likely_bug, likely_uncertainty, match, unknown)",
+    )
+    flt.add_argument(
+        "--divergent-only", action="store_true", default=False,
+        help="Keep only divergent samples",
+    )
+    flt.add_argument(
+        "--matched-only", action="store_true", default=False,
+        help="Keep only matched samples",
+    )
+    flt.add_argument(
+        "--min-logprob-gap", type=float, default=None,
+        help="Minimum logprob gap threshold",
+    )
+    flt.add_argument(
+        "--max-logprob-gap", type=float, default=None,
+        help="Maximum logprob gap threshold",
+    )
+    flt.add_argument(
+        "--min-context-length", type=int, default=None,
+        help="Minimum context length",
+    )
+    flt.add_argument(
+        "--max-context-length", type=int, default=None,
+        help="Maximum context length",
+    )
+    flt.add_argument(
+        "--search", default=None,
+        help="Filter by text in prompt or output (case-insensitive)",
+    )
+
     cfg_cmd = sub.add_parser("config", help="Configuration utilities")
     cfg_sub = cfg_cmd.add_subparsers(dest="config_command")
     cfg_validate = cfg_sub.add_parser("validate", help="Validate a TOML config file")
@@ -461,6 +498,11 @@ def main(argv: list[str] | None = None) -> None:
         except KeyError as exc:
             parser.error(str(exc))
         apply_profile(vars(args), profile)
+
+    # Handle 'filter' subcommand (M42)
+    if args.command == "filter":
+        _run_filter(args)
+        return
 
     # Handle 'init' subcommand
     if args.command == "init":
@@ -1822,6 +1864,31 @@ def _run_history(args: argparse.Namespace) -> None:
 
     else:
         print("Usage: xpyd-acc history {save|list|trend}")
+
+
+def _run_filter(args: argparse.Namespace) -> None:
+    """Filter samples from a batch report."""
+    from xpyd_acc.filter import FilterConfig, filter_samples, load_report, save_report
+
+    report = load_report(args.input)
+    config = FilterConfig(
+        classification=args.classification,
+        divergent_only=args.divergent_only,
+        matched_only=args.matched_only,
+        min_logprob_gap=args.min_logprob_gap,
+        max_logprob_gap=args.max_logprob_gap,
+        min_context_length=args.min_context_length,
+        max_context_length=args.max_context_length,
+        search=args.search,
+    )
+    filtered = filter_samples(report, config)
+    save_report(filtered, args.output)
+
+    total = filtered["total_samples"]
+    divergent = filtered["divergent_samples"]
+    rate = filtered["divergence_rate"]
+    print(f"\nFiltered report: {total} samples, {divergent} divergent ({rate:.1%})")
+    print(f"Saved to {args.output}")
 
 
 def _run_init(args: argparse.Namespace) -> None:
