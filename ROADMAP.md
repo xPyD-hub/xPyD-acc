@@ -451,3 +451,14 @@
 - `--fail-threshold` integrates with CI: fail only if CI lower bound exceeds threshold
 - Useful for deciding if sample size is large enough to trust the divergence rate
 - Tests for Wilson CI math, integration with batch report, edge cases (0%, 100%, n=1)
+
+## M54: Sample Annotation for Batch Reports ✅
+- `xpyd-acc annotate --report <path> --sample <id> --note <text>` adds free-text note
+- `xpyd-acc annotate --report <path> --sample <id> --label <tag>` adds classification label
+- `xpyd-acc annotate --report <path> --list` shows all annotations
+- `xpyd-acc annotate --report <path> --sample <id> --clear` removes annotations
+- Sidecar storage (`<report>.annotations.json`) keeps original report immutable
+- Labels: `known_issue`, `false_positive`, `needs_investigation`, `fixed`, or custom strings
+- `filter` gains `--annotation-label`, `--annotated`, `--unannotated` flags
+- `annotations_for_markdown()` helper for report integration
+- 19 tests covering CRUD, persistence, CLI integration, edge cases
