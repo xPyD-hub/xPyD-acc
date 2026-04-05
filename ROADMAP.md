@@ -381,7 +381,7 @@
 - `distribution.py` module with all metric computations
 - 22 tests covering KL/JS computation, overlap, edge cases
 
-## M47: Auto-Bisect Divergence by Context Length
+## M47: Auto-Bisect Divergence by Context Length ✅
 - `xpyd-acc bisect --baseline <url> --target <url> --prompt <text> --model <model>`
 - Binary search over prompt prefix lengths to find minimum divergence threshold
 - `--min-length` and `--max-length` to bound search range
