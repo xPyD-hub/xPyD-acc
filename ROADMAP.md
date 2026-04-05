@@ -344,3 +344,12 @@
 - Recalculates report statistics for the filtered subset
 - Rich terminal summary of filtered results
 - Tests for all filter criteria and combinations
+
+## M43: Report Diff — Side-by-Side Comparison of Two Batch Reports
+- `xpyd-acc diff --old <report.json> --new <report.json>` compares two batch reports
+- Per-sample status transition: match→diverge (regression), diverge→match (fix), unchanged
+- Summary: total regressions, fixes, new samples, removed samples
+- Output changes: show text diff of baseline/target outputs for changed samples
+- `--json <path>` export the diff as JSON
+- Rich terminal output with colored status transitions
+- Complements `regression` (which only checks match/diverge) by also showing output text changes
