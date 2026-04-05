@@ -357,3 +357,24 @@ def _run_prometheus(args: argparse.Namespace) -> None:
     if args.push_gateway:
         push_to_gateway(metrics, args.push_gateway, job=args.job)
         print(f"Metrics pushed to {args.push_gateway}")
+
+
+def _run_grafana_dashboard(args: argparse.Namespace) -> None:
+    """Generate Grafana dashboard JSON template."""
+    from pathlib import Path
+
+    from xpyd_acc.batch_compare import load_report
+    from xpyd_acc.grafana import generate_dashboard
+
+    report = None
+    if args.report:
+        report = load_report(args.report)
+
+    dashboard = generate_dashboard(
+        report,
+        title=args.title,
+        datasource=args.datasource,
+    )
+
+    Path(args.output).write_text(dashboard.to_json(), encoding="utf-8")
+    print(f"Grafana dashboard written to {args.output}")
