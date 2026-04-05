@@ -411,3 +411,14 @@
 - Works with single-target and multi-target reports
 - `summary.py` module with `SummaryData`, `extract_summary()`, `load_and_summarize()`
 - 22 tests covering all formats, edge cases, and CLI integration
+
+## M50: JUnit XML Export for CI Integration ⬜
+- `batch-compare --junit <path>` exports results as JUnit XML
+- Each sample becomes a test case: passing samples → passed, divergent → failed
+- Test suite name includes dataset, model, and timestamp
+- Failure message contains divergence index, logprob gap, and truncated output diff
+- Works with multi-target reports (one test suite per target)
+- TOML config: `[batch] junit_path = "results.xml"`
+- Compatible with Jenkins, GitLab CI, GitHub Actions test reporters
+- `junit.py` module with `BatchReport.to_junit()` method
+- Tests for XML generation, multi-target, edge cases, CLI integration

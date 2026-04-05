@@ -52,6 +52,7 @@ class BatchConfig:
     logprob_gap_threshold: float = 0.1
     dataset: str | None = None
     csv: str | None = None
+    junit_path: str | None = None
     fail_threshold: float | None = None
     deduplicate: bool = False
     cache_dir: str | None = None
@@ -191,6 +192,7 @@ def merge_cli_args(config: AppConfig, args: dict[str, Any], command: str) -> dic
             "logprob_gap_threshold": config.batch.logprob_gap_threshold,
             "dataset": config.batch.dataset,
             "csv": config.batch.csv,
+            "junit": config.batch.junit_path,
             "fail_threshold": config.batch.fail_threshold,
             "deduplicate": config.batch.deduplicate,
             "cache_dir": config.batch.cache_dir,
