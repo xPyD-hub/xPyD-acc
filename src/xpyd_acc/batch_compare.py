@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from xpyd_acc.cost import TokenUsage, UsageSummary, extract_usage, format_usage_summary
 from xpyd_acc.log import get_logger
 from xpyd_acc.response_validate import validate_chat_response
 
@@ -77,6 +78,8 @@ class BatchReport:
     divergence_ci_lower: float | None = None
     divergence_ci_upper: float | None = None
     confidence_level: float | None = None
+    # Token usage and cost tracking
+    usage: UsageSummary | None = None
 
     def to_markdown(self, *, max_divergent_samples: int = 10) -> str:
         """Serialize the report to a Markdown string."""
@@ -101,6 +104,7 @@ class BatchReport:
             "divergence_ci_lower": self.divergence_ci_lower,
             "divergence_ci_upper": self.divergence_ci_upper,
             "confidence_level": self.confidence_level,
+            "usage": self.usage.to_dict() if self.usage is not None else None,
             "results": [
                 {
                     "sample_id": r.sample_id,
@@ -161,6 +165,17 @@ def load_report(path: str | Path) -> BatchReport:
             )
         )
 
+    # Deserialise usage if present
+    usage_data = data.get("usage")
+    usage: UsageSummary | None = None
+    if usage_data is not None and isinstance(usage_data, dict):
+        usage = UsageSummary(
+            total_prompt_tokens=usage_data.get("total_prompt_tokens", 0),
+            total_completion_tokens=usage_data.get("total_completion_tokens", 0),
+            num_requests=usage_data.get("num_requests", 0),
+            estimated_cost_usd=usage_data.get("estimated_cost_usd"),
+        )
+
     return BatchReport(
         total_samples=data["total_samples"],
         divergent_samples=data["divergent_samples"],
@@ -178,6 +193,7 @@ def load_report(path: str | Path) -> BatchReport:
         divergence_ci_lower=data.get("divergence_ci_lower"),
         divergence_ci_upper=data.get("divergence_ci_upper"),
         confidence_level=data.get("confidence_level"),
+        usage=usage,
     )
 
 
@@ -328,7 +344,7 @@ async def _collect_output(
 ) -> tuple[str, list[dict[str, Any]], str]:
     """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list, request_id).
 
-    Returns a tuple of (generated_text, logprobs_per_token, request_id).
+    Returns a tuple of (generated_text, logprobs_per_token, request_id, token_usage).
     Each logprob entry has: {"token": str, "logprob": float, "top_logprobs": [...]}.
 
     Args:
@@ -347,7 +363,7 @@ async def _collect_output(
     if cache is not None:
         entry = cache.get(url, model, prompt, sp_dict)
         if entry is not None:
-            return entry.text, entry.logprobs, entry.request_id
+            return entry.text, entry.logprobs, entry.request_id, TokenUsage()
 
     payload: dict[str, Any] = {
         "model": model,
@@ -364,7 +380,7 @@ async def _collect_output(
         headers["X-Request-ID"] = rid
         logger.debug("Request ID %s for %s", rid, url)
 
-    async def _do_request() -> tuple[str, list[dict[str, Any]], str]:
+    async def _do_request() -> tuple[str, list[dict[str, Any]], str, TokenUsage]:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
                 f"{url}/v1/chat/completions", json=payload, headers=headers,
@@ -376,9 +392,10 @@ async def _collect_output(
         choice = data["choices"][0]
         text = choice["message"]["content"]
         logprobs_content = choice.get("logprobs", {}).get("content", [])
-        return text, logprobs_content, rid
+        usage = extract_usage(data)
+        return text, logprobs_content, rid, usage
 
-    text, logprobs_list, out_rid = await retry_async(
+    text, logprobs_list, out_rid, usage = await retry_async(
         _do_request, retries=retries, base_delay=retry_delay,
     )
 
@@ -386,7 +403,7 @@ async def _collect_output(
     if cache is not None:
         cache.put(url, model, prompt, text, logprobs_list, out_rid, sp_dict)
 
-    return text, logprobs_list, out_rid
+    return text, logprobs_list, out_rid, usage
 
 
 async def run_batch(
@@ -446,14 +463,18 @@ async def run_batch(
 
     async def _collect_pair(
         prompt: str,
-    ) -> tuple[str, list[dict[str, Any]], str, str, list[dict[str, Any]], str]:
+    ) -> tuple[
+        str, list[dict[str, Any]], str,
+        str, list[dict[str, Any]], str,
+        TokenUsage, TokenUsage,
+    ]:
         """Collect outputs from both endpoints for a single prompt."""
         b_rid = str(uuid.uuid4()) if enable_request_ids else ""
         t_rid = str(uuid.uuid4()) if enable_request_ids else ""
         async with semaphore:
             if rate_limiter is not None:
                 await rate_limiter.acquire()
-            baseline_text, baseline_lp, b_rid_out = await _collect_output(
+            baseline_text, baseline_lp, b_rid_out, b_usage = await _collect_output(
                 baseline_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
@@ -464,7 +485,7 @@ async def run_batch(
             )
             if rate_limiter is not None:
                 await rate_limiter.acquire()
-            target_text, target_lp, t_rid_out = await _collect_output(
+            target_text, target_lp, t_rid_out, t_usage = await _collect_output(
                 target_url, prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
@@ -473,7 +494,11 @@ async def run_batch(
                 cache=cache,
                 skip_validation=skip_validation,
             )
-        return baseline_text, baseline_lp, b_rid_out, target_text, target_lp, t_rid_out
+        return (
+            baseline_text, baseline_lp, b_rid_out,
+            target_text, target_lp, t_rid_out,
+            b_usage, t_usage,
+        )
 
     def _build_result(
         sample: DatasetSample,
@@ -532,15 +557,22 @@ async def run_batch(
             request_ids=req_ids,
         )
 
-    _PairResult = tuple[str, list[dict[str, Any]], str, str, list[dict[str, Any]], str]
+    _PairResult = tuple[
+        str, list[dict[str, Any]], str,
+        str, list[dict[str, Any]], str,
+        TokenUsage, TokenUsage,
+    ]
 
     if deduplicate:
         # Send unique prompts only, then fan out results
         total = len(unique_prompts)
+        usage_summary = UsageSummary()
 
         async def _tracked_unique(prompt: str) -> _PairResult:
             nonlocal completed
             result = await _collect_pair(prompt)
+            usage_summary.add(result[6])  # baseline usage
+            usage_summary.add(result[7])  # target usage
             completed += 1
             if on_progress is not None:
                 on_progress(completed, total)
@@ -557,31 +589,40 @@ async def run_batch(
         # Build results in original sample order
         all_results: list[SampleResult] = []
         for sample in samples:
-            bt, blp, brid, tt, tlp, trid = prompt_to_pair[sample.prompt]
+            bt, blp, brid, tt, tlp, trid, _bu, _tu = prompt_to_pair[sample.prompt]
             all_results.append(_build_result(sample, bt, blp, brid, tt, tlp, trid))
         results = all_results
 
-        return compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
+        report = compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
+        report.usage = usage_summary
+        return report
 
-    async def process_sample(sample: DatasetSample) -> SampleResult:
-        bt, blp, brid, tt, tlp, trid = await _collect_pair(sample.prompt)
-        return _build_result(sample, bt, blp, brid, tt, tlp, trid)
+    async def process_sample(sample: DatasetSample) -> tuple[SampleResult, TokenUsage, TokenUsage]:
+        bt, blp, brid, tt, tlp, trid, b_usage, t_usage = await _collect_pair(sample.prompt)
+        return _build_result(sample, bt, blp, brid, tt, tlp, trid), b_usage, t_usage
 
     total = len(samples)
+    usage_summary = UsageSummary()
 
-    async def _tracked_sample(sample: DatasetSample) -> SampleResult:
+    async def _tracked_sample(sample: DatasetSample) -> tuple[SampleResult, TokenUsage, TokenUsage]:
         nonlocal completed
-        result = await process_sample(sample)
+        result_tuple = await process_sample(sample)
         completed += 1
         if on_progress is not None:
             on_progress(completed, total)
-        return result
+        return result_tuple
 
     tasks = [_tracked_sample(s) for s in samples]
-    results = await asyncio.gather(*tasks)
-    results = list(results)
+    raw_results = await asyncio.gather(*tasks)
+    results = []
+    for sr, b_u, t_u in raw_results:
+        results.append(sr)
+        usage_summary.add(b_u)
+        usage_summary.add(t_u)
 
-    return compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
+    report = compute_report(results, logprob_gap_threshold=logprob_gap_threshold)
+    report.usage = usage_summary
+    return report
 
 
 def compute_report(
@@ -735,6 +776,10 @@ def format_report(report: BatchReport) -> str:
                     f"  {bucket:>10s}: {stats['divergent']}/{stats['total']} ({rate:.1%})"
                 )
 
+    if report.usage is not None:
+        lines.append("")
+        lines.append(format_usage_summary(report.usage))
+
     return "\n".join(lines)
 
 
@@ -826,6 +871,19 @@ def _to_markdown(report: BatchReport, *, max_divergent_samples: int = 10) -> str
                 lines.append(f"- **Target:** `{target_preview}`")
                 lines.append("")
 
+    if report.usage is not None:
+        lines.append("## Token Usage")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(f"| Requests | {report.usage.num_requests:,} |")
+        lines.append(f"| Prompt tokens | {report.usage.total_prompt_tokens:,} |")
+        lines.append(f"| Completion tokens | {report.usage.total_completion_tokens:,} |")
+        lines.append(f"| Total tokens | {report.usage.total_tokens:,} |")
+        if report.usage.estimated_cost_usd is not None:
+            lines.append(f"| Estimated cost | ${report.usage.estimated_cost_usd:.4f} |")
+        lines.append("")
+
     return "\n".join(lines)
 
 
@@ -838,6 +896,7 @@ class MultiTargetBatchReport:
     per_target: dict[str, BatchReport]
     agreement_matrix: dict[str, dict[str, float]]  # target_url -> target_url -> agreement rate
     total_samples: int
+    usage: UsageSummary | None = None
 
     def to_json(self) -> str:
         """Serialize to JSON string."""
@@ -966,15 +1025,18 @@ async def run_multi_batch(
     semaphore = asyncio.Semaphore(concurrency)
 
     # Step 1: Collect baseline outputs for all samples
+    usage_summary = UsageSummary()
+
     async def collect_baseline(sample: DatasetSample) -> tuple[str, str, list[dict[str, Any]]]:
         async with semaphore:
-            text, lp, _rid = await _collect_output(
+            text, lp, _rid, b_usage = await _collect_output(
                 baseline_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
                 skip_validation=skip_validation,
             )
+        usage_summary.add(b_usage)
         return sample.id, text, lp
 
     baseline_tasks = [collect_baseline(s) for s in samples]
@@ -992,13 +1054,14 @@ async def run_multi_batch(
     ) -> SampleResult:
         nonlocal completed
         async with semaphore:
-            target_text, target_lp, _rid = await _collect_output(
+            target_text, target_lp, _rid, t_usage = await _collect_output(
                 target_url, sample.prompt, model=model,
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
                 skip_validation=skip_validation,
             )
+        usage_summary.add(t_usage)
 
         baseline_text, baseline_lp = baseline_outputs[sample.id]
         b_tokens = _tokenize(baseline_text)
@@ -1061,6 +1124,7 @@ async def run_multi_batch(
         per_target=per_target,
         agreement_matrix=agreement_matrix,
         total_samples=len(samples),
+        usage=usage_summary,
     )
 
 

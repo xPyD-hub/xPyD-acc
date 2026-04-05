@@ -245,6 +245,14 @@ def main(argv: list[str] | None = None) -> None:
         "--webhook-always", action="store_true", default=False,
         help="Send webhook on every run, not just on divergence",
     )
+    bc.add_argument(
+        "--input-price", type=float, default=None,
+        help="Input token price per 1M tokens (USD) for cost estimation",
+    )
+    bc.add_argument(
+        "--output-price", type=float, default=None,
+        help="Output token price per 1M tokens (USD) for cost estimation",
+    )
 
     # Cache management subcommand
     cache_cmd = sub.add_parser("cache", help="Manage response cache")
@@ -1082,6 +1090,9 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         if cs.hits + cs.misses > 0:
             print(f"\nCache: {cs.hits} hits, {cs.misses} misses ({cs.hit_rate:.0%} hit rate)")
 
+    # Apply cost estimation if pricing is configured
+    _apply_cost_to_report(args, report if report is not None else multi_report)
+
     if multi_report is not None:
         # Multi-target mode
         for url in target_urls:
@@ -1225,6 +1236,41 @@ async def _maybe_send_webhook(
         divergence_rate=rate,
     )
     await send_webhook(config, payload)
+
+
+def _apply_cost_to_report(
+    args: argparse.Namespace,
+    report: object,
+) -> None:
+    """Apply cost estimation to report usage if pricing is configured."""
+    from xpyd_acc.cost import CostConfig
+
+    input_price = getattr(args, "input_price", None)
+    output_price = getattr(args, "output_price", None)
+
+    # Fall back to TOML config
+    config = getattr(args, "_config", None)
+    if config is not None:
+        cost_cfg = getattr(config, "cost", None)
+        if cost_cfg is not None:
+            if input_price is None:
+                input_price = getattr(cost_cfg, "input_price_per_m", None) or None
+            if output_price is None:
+                output_price = getattr(cost_cfg, "output_price_per_m", None) or None
+
+    # If neither price is set, nothing to do
+    if not input_price and not output_price:
+        return
+
+    usage = getattr(report, "usage", None)
+    if usage is None:
+        return
+
+    cost_config = CostConfig(
+        input_price_per_m=input_price or 0.0,
+        output_price_per_m=output_price or 0.0,
+    )
+    usage.apply_cost(cost_config)
 
 
 def _maybe_apply_confidence(

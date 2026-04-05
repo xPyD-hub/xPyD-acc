@@ -331,6 +331,7 @@ class TestOnProgressCallback:
         from unittest.mock import AsyncMock, patch
 
         from xpyd_acc.batch_compare import DatasetSample, run_batch
+        from xpyd_acc.cost import TokenUsage
 
         samples = [
             DatasetSample(id="0", prompt="hello"),
@@ -338,7 +339,7 @@ class TestOnProgressCallback:
             DatasetSample(id="2", prompt="test"),
         ]
 
-        mock_output = ("response text", [], "")
+        mock_output = ("response text", [], "", TokenUsage())
 
         progress_calls: list[tuple[int, int]] = []
 
@@ -369,9 +370,10 @@ class TestOnProgressCallback:
         from unittest.mock import AsyncMock, patch
 
         from xpyd_acc.batch_compare import DatasetSample, run_batch
+        from xpyd_acc.cost import TokenUsage
 
         samples = [DatasetSample(id="0", prompt="hello")]
-        mock_output = ("response", [], "")
+        mock_output = ("response", [], "", TokenUsage())
 
         with patch("xpyd_acc.batch_compare._collect_output", new_callable=AsyncMock) as mock_co:
             mock_co.return_value = mock_output

@@ -6,6 +6,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 from xpyd_acc.batch_compare import DatasetSample, run_batch
+from xpyd_acc.cost import TokenUsage
 
 
 def test_deduplicate_reduces_api_calls() -> None:
@@ -16,7 +17,7 @@ def test_deduplicate_reduces_api_calls() -> None:
         DatasetSample(id="3", prompt="What is 3+3?"),
         DatasetSample(id="4", prompt="What is 2+2?"),  # duplicate
     ]
-    mock_output = ("hello world", [], "")
+    mock_output = ("hello world", [], "", TokenUsage())
 
     with patch(
         "xpyd_acc.batch_compare._collect_output",
@@ -44,7 +45,7 @@ def test_no_deduplicate_sends_all_calls() -> None:
         DatasetSample(id="2", prompt="What is 2+2?"),
         DatasetSample(id="3", prompt="What is 3+3?"),
     ]
-    mock_output = ("hello world", [], "")
+    mock_output = ("hello world", [], "", TokenUsage())
 
     with patch(
         "xpyd_acc.batch_compare._collect_output",
@@ -71,7 +72,7 @@ def test_deduplicate_no_duplicates() -> None:
         DatasetSample(id="2", prompt="What is 3+3?"),
         DatasetSample(id="3", prompt="What is 4+4?"),
     ]
-    mock_output = ("hello world", [], "")
+    mock_output = ("hello world", [], "", TokenUsage())
 
     with patch(
         "xpyd_acc.batch_compare._collect_output",
@@ -98,7 +99,7 @@ def test_deduplicate_preserves_sample_ids() -> None:
         DatasetSample(id="b", prompt="prompt1"),
         DatasetSample(id="c", prompt="prompt2"),
     ]
-    mock_output = ("hello world", [], "")
+    mock_output = ("hello world", [], "", TokenUsage())
 
     with patch(
         "xpyd_acc.batch_compare._collect_output",
@@ -124,7 +125,7 @@ def test_deduplicate_progress_callback() -> None:
         DatasetSample(id="2", prompt="p1"),
         DatasetSample(id="3", prompt="p2"),
     ]
-    mock_output = ("hello", [], "")
+    mock_output = ("hello", [], "", TokenUsage())
     progress_calls: list[tuple[int, int]] = []
 
     def on_progress(done: int, total: int) -> None:

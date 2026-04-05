@@ -15,6 +15,7 @@ from xpyd_acc.batch_compare import (
     compute_report,
     run_multi_batch,
 )
+from xpyd_acc.cost import TokenUsage
 
 
 def _make_sample_result(
@@ -161,10 +162,10 @@ class TestRunMultiBatch:
             nonlocal call_count
             call_count += 1
             if "base" in url:
-                return "baseline output", [], ""
+                return "baseline output", [], "", TokenUsage()
             if "t1" in url:
-                return "baseline output", [], ""  # matches
-            return "different output", [], ""  # diverges
+                return "baseline output", [], "", TokenUsage()  # matches
+            return "different output", [], "", TokenUsage()  # diverges
 
         with patch("xpyd_acc.batch_compare._collect_output", side_effect=mock_collect):
             report = await run_multi_batch(
@@ -188,7 +189,7 @@ class TestRunMultiBatch:
         ]
 
         async def mock_collect(url, prompt, **kwargs):
-            return "output", [], ""
+            return "output", [], "", TokenUsage()
 
         progress_calls: list[tuple[int, int]] = []
 
