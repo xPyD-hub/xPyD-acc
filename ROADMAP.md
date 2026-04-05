@@ -644,3 +644,16 @@
 - Rich terminal formatting for stats and comparison
 - Handles edge cases: empty, single token, non-normalized logprobs
 - 22 tests covering computation, edge cases, formatting, file I/O, CLI integration
+
+## M71: Output Length Bias Detection ✅
+- `length_bias.py` module: detect systematic output length differences between baseline and target
+- `SampleLength` and `LengthBiasResult` dataclasses with `to_dict()` serialization
+- Per-sample: baseline_length, target_length, length_diff, length_ratio
+- Paired t-test for statistical significance of length bias
+- Classification: shorter_bias, longer_bias, no_bias
+- CLI: `xpyd-acc length-bias --report <path>`
+- `--alpha <float>` significance level (default 0.05)
+- `--json <path>` export
+- Exit 1 if significant bias detected (CI-friendly)
+- Rich terminal output with summary and distribution breakdown
+- 28 tests covering t-test, analysis, formatting, file I/O, CLI integration

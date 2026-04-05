@@ -403,6 +403,14 @@ def main(argv: list[str] | None = None) -> None:
     )
     ent.add_argument("--json", dest="json_path", default=None, help="Export results as JSON")
 
+    # length-bias
+    lbias = sub.add_parser("length-bias", help="Detect output length bias in batch reports")
+    lbias.add_argument("--report", required=True, help="Path to batch report JSON file")
+    lbias.add_argument(
+        "--alpha", type=float, default=0.05, help="Significance level (default: 0.05)",
+    )
+    lbias.add_argument("--json", dest="json_path", default=None, help="Export results as JSON")
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -909,6 +917,8 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(_run_concurrency_sweep(args))
     elif args.command == "entropy":
         _run_entropy(args)
+    elif args.command == "length-bias":
+        _run_length_bias(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -2927,3 +2937,26 @@ def _run_entropy(args: argparse.Namespace) -> None:
     if args.json_path:
         Path(args.json_path).write_text(json.dumps(output, indent=2))
         print(f"\nExported to {args.json_path}")
+
+
+def _run_length_bias(args: argparse.Namespace) -> None:
+    """Run output length bias analysis on a batch report."""
+    import json
+    from pathlib import Path
+
+    from xpyd_acc.length_bias import (
+        analyze_length_bias,
+        format_length_bias,
+        load_report_file,
+    )
+
+    report = load_report_file(args.report)
+    result = analyze_length_bias(report, alpha=args.alpha)
+    print(format_length_bias(result))
+
+    if args.json_path:
+        Path(args.json_path).write_text(json.dumps(result.to_dict(), indent=2))
+        print(f"\nExported to {args.json_path}")
+
+    if result.classification != "no_bias":
+        raise SystemExit(1)
