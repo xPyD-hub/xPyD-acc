@@ -2986,7 +2986,6 @@ def _run_length_bias(args: argparse.Namespace) -> None:
 
 async def _run_sensitivity(args: argparse.Namespace) -> None:
     """Run prompt sensitivity analysis."""
-    import json
     from pathlib import Path
 
     from xpyd_acc.sensitivity import format_sensitivity, run_sensitivity
