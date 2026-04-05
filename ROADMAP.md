@@ -380,3 +380,15 @@
 - `--kl-threshold <float>` flag to flag positions exceeding threshold
 - `distribution.py` module with all metric computations
 - 22 tests covering KL/JS computation, overlap, edge cases
+
+## M47: Auto-Bisect Divergence by Context Length
+- `xpyd-acc bisect --baseline <url> --target <url> --prompt <text> --model <model>`
+- Binary search over prompt prefix lengths to find minimum divergence threshold
+- `--min-length` and `--max-length` to bound search range
+- `BisectResult` dataclass with threshold_length, steps, always/never_diverges
+- JSON export via `--json <path>`
+- Rich terminal progress output with per-step pass/fail
+- Sampling params support (--temperature, --top-p, --seed, --profile)
+- Retry, timeout flags supported
+- `bisect.py` module with `run_bisect()` async function
+- 10 tests covering binary search, edge cases, JSON export, callbacks
