@@ -345,7 +345,7 @@
 - Rich terminal summary of filtered results
 - Tests for all filter criteria and combinations
 
-## M43: Report Diff — Side-by-Side Comparison of Two Batch Reports
+## M43: Report Diff — Side-by-Side Comparison of Two Batch Reports ✅
 - `xpyd-acc diff --old <report.json> --new <report.json>` compares two batch reports
 - Per-sample status transition: match→diverge (regression), diverge→match (fix), unchanged
 - Summary: total regressions, fixes, new samples, removed samples
