@@ -694,7 +694,7 @@
 - `root_cause.py` module: `analyze_root_cause()`, `RootCauseAnalysis`, `format_root_cause()`
 - 15 tests covering heuristic rules, edge cases, formatting, JSON export, CLI integration
 
-## M75: Side-by-Side Token Diff Viewer
+## M75: Side-by-Side Token Diff Viewer ✅
 - `xpyd-acc token-diff --report <path> --sample <id>` shows rich side-by-side token diff
 - Baseline tokens on left, target tokens on right, aligned at divergence point
 - Color-coded: green (match), red (mismatch), yellow (logprob warning)
