@@ -74,6 +74,14 @@ def main(argv: list[str] | None = None) -> None:
         help="Base retry delay in seconds (default: 1.0)",
     )
     _add_sampling_args(lp)
+    lp.add_argument(
+        "--top-k", type=int, default=None, dest="top_k",
+        help="Number of top logprobs to collect per position (default: 5)",
+    )
+    lp.add_argument(
+        "--kl-threshold", type=float, default=None, dest="kl_threshold",
+        help="KL divergence threshold for flagging positions (default: 0.1)",
+    )
 
     diag = sub.add_parser("diagnose", help="Run full diagnostic pipeline")
     diag.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -1242,10 +1250,20 @@ def _run_compare_output(args: argparse.Namespace) -> None:
 
 async def _run_compare_logprobs(args: argparse.Namespace) -> None:
     """Run logprobs comparison between two endpoints."""
+    from xpyd_acc.distribution import (
+        TokenDistribution,
+        compare_distributions,
+        format_distribution_report,
+    )
     from xpyd_acc.logprobs import LogprobsCollector, LogprobsComparator
     from xpyd_acc.sampling import SamplingParams
 
     sampling = SamplingParams.from_args(args)
+    top_k = getattr(args, "top_k", None) or 5
+    kl_threshold = getattr(args, "kl_threshold", None)
+    if kl_threshold is None:
+        kl_threshold = 0.1
+
     baseline_collector = LogprobsCollector(args.baseline, api_key=args.api_key, model=args.model)
     target_collector = LogprobsCollector(args.target, api_key=args.api_key, model=args.model)
 
@@ -1254,6 +1272,7 @@ async def _run_compare_logprobs(args: argparse.Namespace) -> None:
         args.prompt, max_tokens=args.max_tokens,
         retries=args.retries, retry_delay=args.retry_delay,
         sampling_params=sampling,
+        top_k=top_k,
     )
 
     print(f"Collecting logprobs from target: {args.target}")
@@ -1261,12 +1280,32 @@ async def _run_compare_logprobs(args: argparse.Namespace) -> None:
         args.prompt, max_tokens=args.max_tokens,
         retries=args.retries, retry_delay=args.retry_delay,
         sampling_params=sampling,
+        top_k=top_k,
     )
 
     comparator = LogprobsComparator()
     report = comparator.compare(baseline_result, target_result)
     print()
     print(comparator.format_report(report))
+
+    # Distribution analysis when top_k > 1
+    if top_k > 1:
+        baseline_dists = [
+            TokenDistribution(index=t.index, tokens=t.top_logprobs)
+            for t in baseline_result.tokens
+        ]
+        target_dists = [
+            TokenDistribution(index=t.index, tokens=t.top_logprobs)
+            for t in target_result.tokens
+        ]
+        dist_report = compare_distributions(
+            baseline_dists, target_dists,
+            kl_threshold=kl_threshold,
+            baseline_endpoint=args.baseline,
+            target_endpoint=args.target,
+        )
+        print()
+        print(format_distribution_report(dist_report))
 
     if not report.match:
         sys.exit(1)

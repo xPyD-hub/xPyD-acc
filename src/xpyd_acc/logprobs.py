@@ -15,6 +15,7 @@ class TokenLogprob:
     index: int
     token: str
     logprob: float
+    top_logprobs: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -66,6 +67,7 @@ class LogprobsCollector:
         retries: int = 3,
         retry_delay: float = 1.0,
         sampling_params: Any | None = None,
+        top_k: int = 1,
     ) -> LogprobsResult:
         """Send prompt and collect logprobs from the completions endpoint."""
         from xpyd_acc.retry import retry_async
@@ -77,7 +79,7 @@ class LogprobsCollector:
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": max_tokens,
             "logprobs": True,
-            "top_logprobs": 1,
+            "top_logprobs": max(top_k, 1),
         }
         if sampling_params is not None:
             payload.update(sampling_params.to_payload())
@@ -99,11 +101,18 @@ class LogprobsCollector:
 
         tokens: list[TokenLogprob] = []
         for i, entry in enumerate(logprobs_content):
+            top_lps: dict[str, float] = {}
+            for tlp in entry.get("top_logprobs", []):
+                top_lps[tlp["token"]] = tlp["logprob"]
+            # Always include the chosen token
+            if entry["token"] not in top_lps:
+                top_lps[entry["token"]] = entry["logprob"]
             tokens.append(
                 TokenLogprob(
                     index=i,
                     token=entry["token"],
                     logprob=entry["logprob"],
+                    top_logprobs=top_lps,
                 )
             )
 
