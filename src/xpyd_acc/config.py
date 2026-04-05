@@ -42,6 +42,7 @@ class DefaultsConfig:
     seed: int | None = None
     timeout: float = 120.0
     rate_limit: float | None = None
+    skip_validation: bool = False
 
 
 @dataclass

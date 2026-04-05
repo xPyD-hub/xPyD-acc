@@ -68,8 +68,10 @@ class LogprobsCollector:
         retry_delay: float = 1.0,
         sampling_params: Any | None = None,
         top_k: int = 1,
+        skip_validation: bool = False,
     ) -> LogprobsResult:
         """Send prompt and collect logprobs from the completions endpoint."""
+        from xpyd_acc.response_validate import validate_chat_response
         from xpyd_acc.retry import retry_async
 
         url = f"{self.base_url}/v1/chat/completions"
@@ -91,6 +93,8 @@ class LogprobsCollector:
                 return resp.json()
 
         data = await retry_async(_do_request, retries=retries, base_delay=retry_delay)
+        if not skip_validation:
+            validate_chat_response(data, require_logprobs=True)
         return self._parse_response(data)
 
     def _parse_response(self, data: dict) -> LogprobsResult:
