@@ -336,3 +336,24 @@ def _run_ab_test(args: argparse.Namespace) -> None:
         print(f"\nA/B test result exported to {args.json_path}")
 
     sys.exit(1 if result.significant else 0)
+
+
+def _run_prometheus(args: argparse.Namespace) -> None:
+    """Export batch report as Prometheus text exposition format."""
+    from pathlib import Path
+
+    from xpyd_acc.batch_compare import load_report
+    from xpyd_acc.prometheus import push_to_gateway, to_prometheus
+
+    report = load_report(args.report)
+    metrics = to_prometheus(report, model=args.model, dataset=args.dataset)
+
+    if args.output:
+        Path(args.output).write_text(metrics, encoding="utf-8")
+        print(f"Prometheus metrics written to {args.output}")
+    else:
+        print(metrics)
+
+    if args.push_gateway:
+        push_to_gateway(metrics, args.push_gateway, job=args.job)
+        print(f"Metrics pushed to {args.push_gateway}")
