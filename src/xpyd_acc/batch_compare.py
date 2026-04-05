@@ -334,6 +334,7 @@ async def run_batch(
     deduplicate: bool = False,
     cache: Any | None = None,
     rate_limiter: Any | None = None,
+    normalizers: list | None = None,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -410,7 +411,7 @@ async def run_batch(
 
         from xpyd_acc.output_compare import normalized_match
 
-        exact = normalized_match(baseline_text, target_text, match_config)
+        exact = normalized_match(baseline_text, target_text, match_config, normalizers=normalizers)
         div_idx = _find_first_divergence(b_tokens, t_tokens)
 
         b_lp_at_div: float | None = None
@@ -850,6 +851,7 @@ async def run_multi_batch(
     match_config: Any | None = None,
     sampling_params: Any | None = None,
     timeout: float = 120.0,
+    normalizers: list | None = None,
 ) -> MultiTargetBatchReport:
     """Run batch comparison of one baseline against multiple targets.
 
@@ -900,7 +902,7 @@ async def run_multi_batch(
 
         from xpyd_acc.output_compare import normalized_match
 
-        exact = normalized_match(baseline_text, target_text, match_config)
+        exact = normalized_match(baseline_text, target_text, match_config, normalizers=normalizers)
         div_idx = _find_first_divergence(b_tokens, t_tokens)
 
         b_lp_at_div: float | None = None

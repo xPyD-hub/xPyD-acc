@@ -87,6 +87,7 @@ STARTER_CONFIG = """\
 # normalize_whitespace = false
 # ignore_case = false
 # numeric_tolerance = 0.001
+# normalizers = ["strip_thinking_tags"]
 
 # [profiles.greedy]
 # temperature = 0.0

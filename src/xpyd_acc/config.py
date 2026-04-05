@@ -80,6 +80,7 @@ class MatchingConfig:
     normalize_whitespace: bool = False
     ignore_case: bool = False
     numeric_tolerance: float | None = None
+    normalizers: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -230,5 +231,10 @@ def merge_cli_args(config: AppConfig, args: dict[str, Any], command: str) -> dic
             if key in merged and (merged[key] is None or merged[key] is False):
                 if config_val is not None and config_val is not False:
                     merged[key] = config_val
+
+        # Merge normalizers from config if not set via CLI
+        if "normalizers" in merged and not merged["normalizers"]:
+            if config.matching.normalizers:
+                merged["normalizers"] = config.matching.normalizers
 
     return merged

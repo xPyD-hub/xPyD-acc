@@ -35,11 +35,22 @@ def _numbers_close(a_str: str, b_str: str, tolerance: float) -> bool:
         return False
 
 
-def normalized_match(text1: str, text2: str, config: MatchConfig | None = None) -> bool:
+def normalized_match(
+    text1: str,
+    text2: str,
+    config: MatchConfig | None = None,
+    normalizers: list | None = None,
+) -> bool:
     """Check whether *text1* and *text2* match under the given tolerances.
 
     With default (None) config, this is strict exact match.
+    *normalizers* is an optional list of callables applied before comparison.
     """
+    if normalizers:
+        from xpyd_acc.normalizers import apply_normalizers
+        text1 = apply_normalizers(text1, normalizers)
+        text2 = apply_normalizers(text2, normalizers)
+
     if config is None:
         return text1 == text2
 
