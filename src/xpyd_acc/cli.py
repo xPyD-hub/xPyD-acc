@@ -624,6 +624,29 @@ def main(argv: list[str] | None = None) -> None:
     fp_cmd.add_argument("--retry-delay", type=float, default=1.0, help="Retry base delay")
     fp_cmd.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout per request")
 
+    # --- reproducibility ---
+    repro_cmd = sub.add_parser("reproducibility", help="Multi-run consistency measurement")
+    repro_cmd.add_argument("--url", default=None, help="Single endpoint URL to measure")
+    repro_cmd.add_argument("--baseline", default=None, help="Baseline endpoint URL (dual mode)")
+    repro_cmd.add_argument("--target", default=None, help="Target endpoint URL (dual mode)")
+    repro_cmd.add_argument("--prompt", required=True, help="Prompt text to send")
+    repro_cmd.add_argument("--model", default="default", help="Model name")
+    repro_cmd.add_argument("--api-key", default=None, help="API key")
+    repro_cmd.add_argument("--max-tokens", type=int, default=256, help="Max tokens per request")
+    repro_cmd.add_argument("--runs", type=int, default=5, help="Number of runs (default 5)")
+    repro_cmd.add_argument(
+        "--json", dest="repro_json", default=None,
+        help="Export report as JSON",
+    )
+    repro_cmd.add_argument(
+        "--threshold", type=float, default=None,
+        help="Exit 1 if majority fraction below threshold (0.0-1.0)",
+    )
+    repro_cmd.add_argument("--retries", type=int, default=3, help="Retry count")
+    repro_cmd.add_argument("--retry-delay", type=float, default=1.0, help="Retry base delay")
+    repro_cmd.add_argument("--timeout", type=float, default=120.0, help="HTTP timeout")
+    _add_sampling_args(repro_cmd)
+
     ds = sub.add_parser("dataset-stats", help="Analyze dataset before batch comparison")
     ds.add_argument("dataset", help="Path to dataset file (JSONL, CSV, JSON)")
     ds.add_argument("--template", help="Path to prompt template file")
@@ -684,6 +707,11 @@ def main(argv: list[str] | None = None) -> None:
     # Handle 'explain' subcommand (M52)
     if args.command == "explain":
         _run_explain(args)
+        return
+
+    # Handle 'reproducibility' subcommand (M62)
+    if args.command == "reproducibility":
+        _run_reproducibility(args)
         return
 
     # Handle 'fingerprint' subcommand (M55)
@@ -2650,3 +2678,57 @@ def _run_dataset_stats(args: argparse.Namespace) -> None:
     if args.json_path:
         report.to_json(args.json_path)
         print(f"\nExported to {args.json_path}")
+
+
+def _run_reproducibility(args: argparse.Namespace) -> None:
+    """Handle the 'reproducibility' subcommand (M62)."""
+    import asyncio
+    from pathlib import Path
+
+    from xpyd_acc.reproducibility import (
+        format_reproducibility,
+        run_reproducibility,
+    )
+
+    api_key = args.api_key or "no-key"
+
+    async def _go() -> None:
+        report = await run_reproducibility(
+            url=args.url,
+            baseline_url=args.baseline,
+            target_url=args.target,
+            prompt=args.prompt,
+            model=args.model,
+            runs=args.runs,
+            api_key=api_key,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            top_p=args.top_p,
+            seed=args.seed,
+            retries=args.retries,
+            retry_delay=args.retry_delay,
+            timeout=args.timeout,
+        )
+
+        print(format_reproducibility(report))
+
+        if args.repro_json:
+            Path(args.repro_json).write_text(report.to_json())
+            print(f"\nExported to {args.repro_json}")
+
+        # Check threshold
+        if args.threshold is not None:
+            results = [
+                r for r in [report.single, report.baseline, report.target]
+                if r is not None
+            ]
+            for r in results:
+                if r.majority_fraction < args.threshold:
+                    print(
+                        f"\n❌ FAIL: {r.url} majority fraction "
+                        f"{r.majority_fraction:.2%} < threshold {args.threshold:.2%}"
+                    )
+                    raise SystemExit(1)
+            print(f"\n✅ PASS: all endpoints above threshold {args.threshold:.2%}")
+
+    asyncio.run(_go())
