@@ -280,6 +280,18 @@ def main(argv: list[str] | None = None) -> None:
         help="Export regression report as JSON",
     )
 
+    # diff
+    diff_p = sub.add_parser("diff", help="Side-by-side comparison of two batch reports")
+    diff_p.add_argument("--old", required=True, help="Path to old batch report JSON")
+    diff_p.add_argument(
+        "--new", required=True, dest="new_report",
+        help="Path to new batch report JSON",
+    )
+    diff_p.add_argument(
+        "--json", dest="json_path", default=None,
+        help="Export diff result as JSON",
+    )
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -591,6 +603,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_report(args)
     elif args.command == "regression":
         _run_regression(args)
+    elif args.command == "diff":
+        _run_diff(args)
     elif args.command == "aggregate":
         _run_aggregate(args)
     elif args.command == "watch":
@@ -1449,6 +1463,22 @@ def _run_regression(args: argparse.Namespace) -> None:
         print(f"\nRegression report exported to {args.json_path}")
 
     sys.exit(1 if report.has_regressions else 0)
+
+
+def _run_diff(args: argparse.Namespace) -> None:
+    """Run side-by-side diff of two batch reports."""
+    from xpyd_acc.diff import diff_reports, format_diff_report
+
+    result = diff_reports(args.old, args.new_report)
+    print(format_diff_report(result))
+
+    if getattr(args, "json_path", None):
+        from pathlib import Path
+
+        Path(args.json_path).write_text(result.to_json())
+        print(f"\nDiff result exported to {args.json_path}")
+
+    sys.exit(1 if result.regressions > 0 else 0)
 
 
 def _run_aggregate(args: argparse.Namespace) -> None:
