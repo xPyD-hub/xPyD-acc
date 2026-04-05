@@ -23,6 +23,7 @@ from typing import Any
 
 from xpyd_acc.config import (
     BatchConfig,
+    CostTrackingConfig,
     DefaultsConfig,
     KVConfig,
     MatchingConfig,
@@ -36,6 +37,7 @@ _SECTION_MAP: dict[str, type] = {
     "kv": KVConfig,
     "report": ReportConfig,
     "matching": MatchingConfig,
+    "cost": CostTrackingConfig,
     "profiles": dict,  # special: profiles are free-form
 }
 
@@ -92,6 +94,10 @@ STARTER_CONFIG = """\
 # ignore_case = false
 # numeric_tolerance = 0.001
 # normalizers = ["strip_thinking_tags"]
+
+[cost]
+# input_price_per_m = 0.0   # USD per 1M input tokens
+# output_price_per_m = 0.0  # USD per 1M output tokens
 
 # [profiles.greedy]
 # temperature = 0.0

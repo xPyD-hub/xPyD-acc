@@ -88,6 +88,14 @@ class MatchingConfig:
 
 
 @dataclass
+class CostTrackingConfig:
+    """Cost tracking configuration."""
+
+    input_price_per_m: float = 0.0
+    output_price_per_m: float = 0.0
+
+
+@dataclass
 class AppConfig:
     """Top-level application configuration."""
 
@@ -96,6 +104,7 @@ class AppConfig:
     kv: KVConfig = field(default_factory=KVConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
     matching: MatchingConfig = field(default_factory=MatchingConfig)
+    cost: CostTrackingConfig = field(default_factory=CostTrackingConfig)
     profiles_raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -131,11 +140,12 @@ def load_config(path: str | Path) -> AppConfig:
     kv = _parse_section(raw.get("kv", {}), KVConfig)
     report = _parse_section(raw.get("report", {}), ReportConfig)
     matching = _parse_section(raw.get("matching", {}), MatchingConfig)
+    cost = _parse_section(raw.get("cost", {}), CostTrackingConfig)
     profiles_raw = raw.get("profiles", {})
 
     return AppConfig(
         defaults=defaults, batch=batch, kv=kv, report=report,
-        matching=matching, profiles_raw=profiles_raw,
+        matching=matching, cost=cost, profiles_raw=profiles_raw,
     )
 
 
