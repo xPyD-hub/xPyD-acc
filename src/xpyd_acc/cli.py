@@ -383,6 +383,26 @@ def main(argv: list[str] | None = None) -> None:
     csweep.add_argument("--json", dest="json_path", default=None, help="Export results as JSON")
     _add_sampling_args(csweep)
 
+    # entropy
+    ent = sub.add_parser("entropy", help="Analyze output entropy from logprob files")
+    ent.add_argument(
+        "--baseline-logprobs", required=True,
+        help="Path to baseline logprobs JSON file",
+    )
+    ent.add_argument(
+        "--target-logprobs", default=None,
+        help="Path to target logprobs JSON file (optional, for comparison)",
+    )
+    ent.add_argument(
+        "--divergence-index", type=int, default=None,
+        help="Token index of divergence for focused analysis",
+    )
+    ent.add_argument(
+        "--context-window", type=int, default=5,
+        help="Context window around divergence point (default: 5)",
+    )
+    ent.add_argument("--json", dest="json_path", default=None, help="Export results as JSON")
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -887,6 +907,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_ab_test(args)
     elif args.command == "concurrency-sweep":
         asyncio.run(_run_concurrency_sweep(args))
+    elif args.command == "entropy":
+        _run_entropy(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -2864,3 +2886,44 @@ async def _run_concurrency_sweep(args: argparse.Namespace) -> None:
 
     if result.any_divergence:
         raise SystemExit(1)
+
+
+def _run_entropy(args: argparse.Namespace) -> None:
+    """Run entropy analysis on logprob files."""
+    import json
+    from pathlib import Path
+
+    from xpyd_acc.entropy import (
+        entropy_at_divergence,
+        entropy_stats,
+        format_entropy_comparison,
+        format_entropy_stats,
+        load_logprobs_file,
+        sequence_entropy,
+    )
+
+    baseline_lp = load_logprobs_file(args.baseline_logprobs)
+    bl_entropies = sequence_entropy(baseline_lp)
+    bl_stats = entropy_stats(bl_entropies)
+
+    output: dict = {"baseline_stats": bl_stats.to_dict()}
+    print("Baseline " + format_entropy_stats(bl_stats))
+
+    if args.target_logprobs:
+        target_lp = load_logprobs_file(args.target_logprobs)
+        tg_entropies = sequence_entropy(target_lp)
+        tg_stats = entropy_stats(tg_entropies)
+        output["target_stats"] = tg_stats.to_dict()
+        print("\nTarget " + format_entropy_stats(tg_stats))
+
+        if args.divergence_index is not None:
+            comp = entropy_at_divergence(
+                baseline_lp, target_lp, args.divergence_index,
+                context_window=args.context_window,
+            )
+            output["comparison"] = comp.to_dict()
+            print("\n" + format_entropy_comparison(comp))
+
+    if args.json_path:
+        Path(args.json_path).write_text(json.dumps(output, indent=2))
+        print(f"\nExported to {args.json_path}")

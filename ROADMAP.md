@@ -632,3 +632,15 @@
 - Rich terminal output with clear verdict
 - `ab_test.py` module: `ABTestResult`, `run_ab_test()`, `format_ab_test()`
 - 26 tests: Fisher exact, chi-square, A/B test logic, JSON export, CLI integration
+
+## M70: Output Entropy Analysis ✅
+- `entropy.py` module: per-token Shannon entropy from top-K logprob distributions
+- `token_entropy()`, `sequence_entropy()`, `entropy_stats()`, `entropy_at_divergence()`
+- `EntropyStats` and `EntropyComparison` dataclasses with `to_dict()` serialization
+- CLI: `xpyd-acc entropy --baseline-logprobs <path> [--target-logprobs <path>]`
+- `--divergence-index <int>` for focused analysis at divergence point with context window
+- `--context-window <int>` configurable (default 5)
+- `--json <path>` export
+- Rich terminal formatting for stats and comparison
+- Handles edge cases: empty, single token, non-normalized logprobs
+- 22 tests covering computation, edge cases, formatting, file I/O, CLI integration
