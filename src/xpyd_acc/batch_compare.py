@@ -356,6 +356,7 @@ async def _collect_output(
     request_id: str | None = None,
     cache: Any | None = None,
     skip_validation: bool = False,
+    custom_headers: dict[str, str] | None = None,
 ) -> tuple[str, list[dict[str, Any]], str]:
     """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list, request_id).
 
@@ -368,6 +369,8 @@ async def _collect_output(
             If None, no header is sent.
         cache: Optional ResponseCache instance for caching responses.
         skip_validation: If True, skip response schema validation.
+        custom_headers: Optional dict of custom HTTP headers to include in requests.
+            These take precedence over default headers (including Authorization).
     """
     import httpx
 
@@ -390,6 +393,8 @@ async def _collect_output(
     if sampling_params is not None:
         payload.update(sampling_params.to_payload())
     headers: dict[str, str] = {"Authorization": f"Bearer {api_key}"}
+    if custom_headers:
+        headers.update(custom_headers)
     rid = request_id or ""
     if rid:
         headers["X-Request-ID"] = rid
@@ -447,6 +452,7 @@ async def run_batch(
     skip_validation: bool = False,
     checkpoint_path: str | None = None,
     checkpoint_clear: bool = False,
+    custom_headers: dict[str, str] | None = None,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -460,6 +466,7 @@ async def run_batch(
         skip_validation: If True, skip response schema validation.
         checkpoint_path: If set, save/load checkpoint for resumable runs.
         checkpoint_clear: If True, delete existing checkpoint before starting.
+        custom_headers: Optional dict of custom HTTP headers for API requests.
     """
     logger.info("Starting batch comparison: %d samples, concurrency=%d", len(samples), concurrency)
 
@@ -550,6 +557,7 @@ async def run_batch(
                 request_id=b_rid if enable_request_ids else None,
                 cache=cache,
                 skip_validation=skip_validation,
+                custom_headers=custom_headers,
             )
             if rate_limiter is not None:
                 await rate_limiter.acquire()
@@ -564,6 +572,7 @@ async def run_batch(
                 request_id=t_rid if enable_request_ids else None,
                 cache=cache,
                 skip_validation=skip_validation,
+                custom_headers=custom_headers,
             )
         return (
             baseline_text, baseline_lp, b_rid_out,
@@ -1188,6 +1197,7 @@ async def run_multi_batch(
     timeout: float = 120.0,
     normalizers: list | None = None,
     skip_validation: bool = False,
+    custom_headers: dict[str, str] | None = None,
 ) -> MultiTargetBatchReport:
     """Run batch comparison of one baseline against multiple targets.
 
@@ -1210,6 +1220,7 @@ async def run_multi_batch(
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
                 skip_validation=skip_validation,
+                custom_headers=custom_headers,
             )
         usage_summary.add(b_usage)
         return sample.id, text, lp
@@ -1235,6 +1246,7 @@ async def run_multi_batch(
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
                 skip_validation=skip_validation,
+                custom_headers=custom_headers,
             )
         usage_summary.add(t_usage)
 
