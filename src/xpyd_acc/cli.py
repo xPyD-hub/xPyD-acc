@@ -191,6 +191,14 @@ def main(argv: list[str] | None = None) -> None:
         "--fail-threshold", type=float, default=None,
         help="Fail (exit 1) if divergence rate exceeds this threshold (0.0–1.0)",
     )
+    bc.add_argument(
+        "--confidence", action="store_true", default=False,
+        help="Compute Wilson score confidence interval for divergence rate",
+    )
+    bc.add_argument(
+        "--confidence-level", type=float, default=0.95,
+        help="Confidence level for CI (default: 0.95)",
+    )
     _add_sampling_args(bc)
     bc.add_argument(
         "--no-request-id", action="store_true", default=False,
@@ -1073,6 +1081,9 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         elif any(r.divergent_samples > 0 for r in multi_report.per_target.values()):
             sys.exit(1)
     else:
+        # Apply confidence interval if requested
+        _maybe_apply_confidence(args, report)
+
         print()
         print(format_report(report))
 
@@ -1099,18 +1110,25 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         # Send webhook notification if configured
         await _maybe_send_webhook(args, report)
 
-        # Determine fail threshold: CLI > env > config > None
         fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
         if fail_threshold is not None:
-            if report.divergence_rate > fail_threshold:
+            # When confidence is enabled, use CI lower bound for threshold check
+            if getattr(args, "confidence", False) and report.divergence_ci_lower is not None:
+                check_val = report.divergence_ci_lower
+                label = f"CI lower bound {check_val:.1%}"
+            else:
+                check_val = report.divergence_rate
+                label = f"divergence rate {check_val:.1%}"
+
+            if check_val > fail_threshold:
                 print(
-                    f"\n✗ FAIL: divergence rate {report.divergence_rate:.1%}"
+                    f"\n✗ FAIL: {label}"
                     f" exceeds threshold {fail_threshold:.1%}",
                 )
                 sys.exit(1)
             else:
                 print(
-                    f"\n✓ PASS: divergence rate {report.divergence_rate:.1%}"
+                    f"\n✓ PASS: {label}"
                     f" within threshold {fail_threshold:.1%}",
                 )
         elif report.divergent_samples > 0:
@@ -1148,6 +1166,22 @@ async def _maybe_send_webhook(
         divergence_rate=rate,
     )
     await send_webhook(config, payload)
+
+
+def _maybe_apply_confidence(
+    args: argparse.Namespace,
+    report: object,
+) -> None:
+    """Apply confidence interval to report if --confidence flag is set."""
+    confidence = getattr(args, "confidence", False)
+    # Also check TOML config
+    config = getattr(args, "_config", None)
+    if not confidence and config is not None:
+        confidence = getattr(getattr(config, "batch", None), "confidence", False)
+    if confidence and report.total_samples > 0:
+        from xpyd_acc.batch_compare import apply_confidence
+        level = getattr(args, "confidence_level", 0.95)
+        apply_confidence(report, level)
 
 
 def _resolve_fail_threshold(

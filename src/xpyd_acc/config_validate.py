@@ -76,6 +76,8 @@ STARTER_CONFIG = """\
 # deduplicate = false
 # cache_dir = ".xpyd-acc-cache"
 # cache_ttl = 3600.0
+# confidence = false
+# confidence_level = 0.95
 
 [kv]
 # max_abs_threshold = 0.001
