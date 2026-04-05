@@ -392,3 +392,12 @@
 - Retry, timeout flags supported
 - `bisect.py` module with `run_bisect()` async function
 - 10 tests covering binary search, edge cases, JSON export, callbacks
+
+## M48: Compact Summary Command ✅
+- `xpyd-acc summary <report.json>` outputs a compact summary of a batch report
+- `--format oneline` (default): single-line summary for CI logs and dashboards
+- `--format json`: compact JSON on one line (for piping to jq, webhooks)
+- `--format kv`: key=value pairs, one per line (for shell scripts)
+- Works with single-target and multi-target reports
+- `summary.py` module with `SummaryData`, `extract_summary()`, `load_and_summarize()`
+- 22 tests covering all formats, edge cases, and CLI integration

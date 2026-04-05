@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 
 
@@ -520,6 +521,15 @@ def main(argv: list[str] | None = None) -> None:
         help="Path to config file (default: xpyd-acc.toml)",
     )
 
+    # summary (M48)
+    summary_cmd = sub.add_parser("summary", help="Compact summary of a batch report")
+    summary_cmd.add_argument("report", help="Path to batch report JSON file")
+    summary_cmd.add_argument(
+        "--format", dest="summary_format", default="oneline",
+        choices=["oneline", "json", "kv"],
+        help="Output format (default: oneline)",
+    )
+
     args = parser.parse_args(argv)
 
     # Setup logging from verbosity flags
@@ -556,6 +566,11 @@ def main(argv: list[str] | None = None) -> None:
         except KeyError as exc:
             parser.error(str(exc))
         apply_profile(vars(args), profile)
+
+    # Handle 'summary' subcommand (M48)
+    if args.command == "summary":
+        _run_summary(args)
+        return
 
     # Handle 'filter' subcommand (M42)
     if args.command == "filter":
@@ -1986,6 +2001,25 @@ def _run_history(args: argparse.Namespace) -> None:
 
     else:
         print("Usage: xpyd-acc history {save|list|trend}")
+
+
+def _run_summary(args: argparse.Namespace) -> None:
+    """Run the summary subcommand."""
+    import sys
+    from pathlib import Path
+
+    from xpyd_acc.summary import load_and_summarize
+
+    report_path = Path(args.report)
+    if not report_path.is_file():
+        print(f"Error: report file not found: {report_path}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        output = load_and_summarize(report_path, args.summary_format)
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"Error: failed to read report: {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(output)
 
 
 def _run_filter(args: argparse.Namespace) -> None:
