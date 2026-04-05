@@ -101,4 +101,4 @@ Added `xpyd-acc root-cause --report <path>` CLI subcommand that analyzes batch r
 | M75 | 2026-04-06 | Side-by-Side Token Diff Viewer | ✅ merged | Both approved |
 | M76 | 2026-04-06 | Report Dashboard Server | ✅ merged | Both approved |
 | M77 | 2026-04-06 | Prometheus Metrics Export | ✅ merged | Both approved |
-| M78 | 2026-04-06 | Grafana Dashboard Template Export | ⏳ PR pending | — |
+| M78 | 2026-04-06 | Grafana Dashboard Template Export | ✅ merged | Both approved |

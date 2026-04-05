@@ -728,7 +728,7 @@
 - `prometheus.py` module: `to_prometheus()`, `push_to_gateway()`
 - 10 tests covering metric generation, labels, push mock, CLI integration
 
-## M78: Grafana Dashboard Template Export
+## M78: Grafana Dashboard Template Export ✅
 - `xpyd-acc grafana-dashboard --report <path> --output <dashboard.json>` generates a Grafana dashboard JSON
 - Pre-configured panels: divergence rate gauge, classification pie chart, context length vs divergence scatter
 - Template variables for Prometheus datasource name
@@ -738,3 +738,15 @@
 - Pairs naturally with M77 Prometheus export for full observability stack
 - `grafana.py` module: `generate_dashboard()`, `GrafanaDashboard` dataclass
 - 10 tests covering dashboard generation, panels, template vars, JSON export, CLI integration
+
+## M79: Parallel Multi-Dataset Batch Run
+- `batch-compare --dataset d1.jsonl --dataset d2.jsonl ...` runs multiple datasets in one command
+- Concurrent dataset execution (datasets run in parallel, samples within each dataset also concurrent)
+- Per-dataset report + combined summary report
+- `MultiDatasetReport` dataclass with per-dataset `BatchReport` and aggregate stats
+- Overall divergence rate across all datasets
+- JSON/Markdown/CSV export with per-dataset breakdowns
+- `--fail-threshold` applies per-dataset (any dataset exceeding threshold → exit 1)
+- Template support: `--template` applies to all datasets, or per-dataset templates via TOML config
+- TOML config: `[multi_dataset]` section with dataset list and per-dataset overrides
+- Useful for running GSM8K + MMLU + HumanEval in one command
