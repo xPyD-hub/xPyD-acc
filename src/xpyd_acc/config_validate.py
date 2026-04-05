@@ -72,6 +72,7 @@ STARTER_CONFIG = """\
 # logprob_gap_threshold = 0.1
 # dataset = "gsm8k"
 # fail_threshold = 0.05
+# junit_path = "results.xml"
 # deduplicate = false
 # cache_dir = ".xpyd-acc-cache"
 # cache_ttl = 3600.0

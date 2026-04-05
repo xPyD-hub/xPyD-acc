@@ -141,6 +141,7 @@ def main(argv: list[str] | None = None) -> None:
     bc.add_argument("--csv", default=None, help="Path to export CSV results")
     bc.add_argument("--json", default=None, dest="json_path", help="Path to export JSON results")
     bc.add_argument("--markdown", default=None, help="Path to export Markdown report")
+    bc.add_argument("--junit", default=None, help="Path to export JUnit XML results")
     bc.add_argument("--retries", type=int, default=None, help="Max retry attempts (default: 3)")
     bc.add_argument(
         "--retry-delay", type=float, default=None,
@@ -1021,6 +1022,13 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             export_csv(first_report, args.csv)
             print(f"\nCSV exported to {args.csv} (first target)")
 
+        if args.junit:
+            from pathlib import Path
+
+            from xpyd_acc.junit import multi_report_to_junit
+            Path(args.junit).write_text(multi_report_to_junit(multi_report))
+            print(f"\nJUnit XML exported to {args.junit}")
+
         fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
         worst_rate = max(r.divergence_rate for r in multi_report.per_target.values())
         if fail_threshold is not None:
@@ -1053,6 +1061,13 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         if args.markdown:
             export_markdown(report, args.markdown)
             print(f"\nMarkdown exported to {args.markdown}")
+
+        if args.junit:
+            from pathlib import Path
+
+            from xpyd_acc.junit import report_to_junit
+            Path(args.junit).write_text(report_to_junit(report))
+            print(f"\nJUnit XML exported to {args.junit}")
 
         # Send webhook notification if configured
         await _maybe_send_webhook(args, report)
