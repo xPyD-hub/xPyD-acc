@@ -283,7 +283,10 @@ def main(argv: list[str] | None = None) -> None:
     # diff
     diff_p = sub.add_parser("diff", help="Side-by-side comparison of two batch reports")
     diff_p.add_argument("--old", required=True, help="Path to old batch report JSON")
-    diff_p.add_argument("--new", required=True, dest="new_report", help="Path to new batch report JSON")
+    diff_p.add_argument(
+        "--new", required=True, dest="new_report",
+        help="Path to new batch report JSON",
+    )
     diff_p.add_argument(
         "--json", dest="json_path", default=None,
         help="Export diff result as JSON",
