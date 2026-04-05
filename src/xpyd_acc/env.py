@@ -15,6 +15,8 @@ ENV_TOP_P = "XPYD_ACC_TOP_P"
 ENV_SEED = "XPYD_ACC_SEED"
 ENV_TIMEOUT = "XPYD_ACC_TIMEOUT"
 ENV_RATE_LIMIT = "XPYD_ACC_RATE_LIMIT"
+ENV_MAX_TOKENS = "XPYD_ACC_MAX_TOKENS"
+ENV_CONCURRENCY = "XPYD_ACC_CONCURRENCY"
 
 
 @dataclass
@@ -30,6 +32,8 @@ class EnvDefaults:
     seed: int | None = None
     timeout: float | None = None
     rate_limit: float | None = None
+    max_tokens: int | None = None
+    concurrency: int | None = None
 
 
 def get_env_defaults() -> EnvDefaults:
@@ -43,6 +47,8 @@ def get_env_defaults() -> EnvDefaults:
     seed_str = os.environ.get(ENV_SEED) or None
     timeout_str = os.environ.get(ENV_TIMEOUT) or None
     rate_limit_str = os.environ.get(ENV_RATE_LIMIT) or None
+    max_tokens_str = os.environ.get(ENV_MAX_TOKENS) or None
+    concurrency_str = os.environ.get(ENV_CONCURRENCY) or None
 
     return EnvDefaults(
         api_key=os.environ.get(ENV_API_KEY) or None,
@@ -54,6 +60,8 @@ def get_env_defaults() -> EnvDefaults:
         seed=int(seed_str) if seed_str is not None else None,
         timeout=float(timeout_str) if timeout_str is not None else None,
         rate_limit=float(rate_limit_str) if rate_limit_str is not None else None,
+        max_tokens=int(max_tokens_str) if max_tokens_str is not None else None,
+        concurrency=int(concurrency_str) if concurrency_str is not None else None,
     )
 
 
