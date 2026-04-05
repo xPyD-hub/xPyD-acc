@@ -364,7 +364,7 @@
 - Logged at INFO level when requests are throttled
 - Tests for rate limiter timing, config resolution, CLI integration
 
-## M45: Custom Output Normalizers ⬜
+## M45: Custom Output Normalizers ✅
 - Plugin-style output normalizers loaded from Python modules
 - `--normalizer <module:function>` flag for `batch-compare`
 - Built-in normalizers: strip_thinking_tags, normalize_json, normalize_numbers
