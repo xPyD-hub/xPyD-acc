@@ -347,6 +347,19 @@ def main(argv: list[str] | None = None) -> None:
         help="Export diff result as JSON",
     )
 
+    # ab-test
+    ab = sub.add_parser("ab-test", help="A/B test divergence rates from two batch reports")
+    ab.add_argument("--report-a", required=True, help="Path to first batch report JSON")
+    ab.add_argument("--report-b", required=True, help="Path to second batch report JSON")
+    ab.add_argument(
+        "--alpha", type=float, default=0.05,
+        help="Significance level (default: 0.05)",
+    )
+    ab.add_argument(
+        "--json", dest="json_path", default=None,
+        help="Export A/B test result as JSON",
+    )
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -847,6 +860,8 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(_run_bisect(args))
     elif args.command == "dataset-stats":
         _run_dataset_stats(args)
+    elif args.command == "ab-test":
+        _run_ab_test(args)
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -1880,6 +1895,32 @@ def _run_diff(args: argparse.Namespace) -> None:
         print(f"\nDiff result exported to {args.json_path}")
 
     sys.exit(1 if result.regressions > 0 else 0)
+
+
+def _run_ab_test(args: argparse.Namespace) -> None:
+    """Run A/B test comparing divergence rates from two batch reports."""
+    import json as json_mod
+    from pathlib import Path
+
+    from xpyd_acc.ab_test import format_ab_test, run_ab_test
+
+    report_a = json_mod.loads(Path(args.report_a).read_text(encoding="utf-8"))
+    report_b = json_mod.loads(Path(args.report_b).read_text(encoding="utf-8"))
+
+    result = run_ab_test(
+        report_a_total=report_a["total_samples"],
+        report_a_divergent=report_a["divergent_samples"],
+        report_b_total=report_b["total_samples"],
+        report_b_divergent=report_b["divergent_samples"],
+        alpha=args.alpha,
+    )
+    print(format_ab_test(result))
+
+    if getattr(args, "json_path", None):
+        result.save_json(args.json_path)
+        print(f"\nA/B test result exported to {args.json_path}")
+
+    sys.exit(1 if result.significant else 0)
 
 
 def _run_aggregate(args: argparse.Namespace) -> None:

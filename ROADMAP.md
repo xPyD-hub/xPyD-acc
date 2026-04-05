@@ -607,3 +607,15 @@
 - `run_batch()` and `run_multi_batch()` forward custom headers
 - CLI `batch-compare` resolves and passes headers through full chain
 - 18 tests: parsing, env var, priority chain, merging, integration, CLI flag
+
+## M68: Endpoint A/B Testing with Statistical Significance ✅
+- `xpyd-acc ab-test --report-a <path> --report-b <path>` compares divergence rates
+- Fisher's exact test (pure Python, no scipy) for statistical significance
+- Chi-square test with Yates' correction as secondary test
+- Effect size via odds ratio and 95% confidence interval for rate difference
+- `--alpha <float>` flag (default 0.05) for significance level
+- `--json <path>` export of full test results
+- Exit code: 0 if no significant difference, 1 if significant (CI-friendly)
+- Rich terminal output with clear verdict
+- `ab_test.py` module: `ABTestResult`, `run_ab_test()`, `format_ab_test()`
+- 26 tests: Fisher exact, chi-square, A/B test logic, JSON export, CLI integration
