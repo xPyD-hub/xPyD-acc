@@ -360,6 +360,29 @@ def main(argv: list[str] | None = None) -> None:
         help="Export A/B test result as JSON",
     )
 
+    # concurrency-sweep
+    csweep = sub.add_parser(
+        "concurrency-sweep",
+        help="Measure divergence at different concurrency levels",
+    )
+    csweep.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    csweep.add_argument("--target", required=True, help="Target endpoint URL")
+    csweep.add_argument("--dataset", required=True, help="Path to dataset file")
+    csweep.add_argument(
+        "--levels", required=True,
+        help="Comma-separated concurrency levels (e.g. 1,2,4,8)",
+    )
+    csweep.add_argument("--model", default=None, help="Model name")
+    csweep.add_argument("--api-key", default=None, help="API key")
+    csweep.add_argument("--max-tokens", type=int, default=256, help="Max tokens per request")
+    csweep.add_argument("--template", default=None, help="Prompt template path")
+    csweep.add_argument("--retries", type=int, default=3, help="Retry count")
+    csweep.add_argument("--retry-delay", type=float, default=1.0, help="Retry delay")
+    csweep.add_argument("--timeout", type=float, default=120.0, help="HTTP timeout")
+    csweep.add_argument("--skip-validation", action="store_true", help="Skip response validation")
+    csweep.add_argument("--json", dest="json_path", default=None, help="Export results as JSON")
+    _add_sampling_args(csweep)
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -862,6 +885,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_dataset_stats(args)
     elif args.command == "ab-test":
         _run_ab_test(args)
+    elif args.command == "concurrency-sweep":
+        asyncio.run(_run_concurrency_sweep(args))
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -2803,3 +2828,39 @@ def _run_reproducibility(args: argparse.Namespace) -> None:
             print(f"\n✅ PASS: all endpoints above threshold {args.threshold:.2%}")
 
     asyncio.run(_go())
+
+
+async def _run_concurrency_sweep(args: argparse.Namespace) -> None:
+    """Run concurrency sweep analysis."""
+    from pathlib import Path
+
+    from xpyd_acc.concurrency_sweep import format_sweep, run_sweep
+
+    levels = [int(x.strip()) for x in args.levels.split(",")]
+
+    result = await run_sweep(
+        baseline_url=args.baseline,
+        target_url=args.target,
+        dataset_path=args.dataset,
+        levels=levels,
+        model=args.model,
+        api_key=args.api_key,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        seed=args.seed,
+        template_path=args.template,
+        retries=args.retries,
+        retry_delay=args.retry_delay,
+        timeout=args.timeout,
+        skip_validation=args.skip_validation,
+    )
+
+    print(format_sweep(result))
+
+    if args.json_path:
+        Path(args.json_path).write_text(result.to_json())
+        print(f"\nExported to {args.json_path}")
+
+    if result.any_divergence:
+        raise SystemExit(1)

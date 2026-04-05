@@ -608,6 +608,19 @@
 - CLI `batch-compare` resolves and passes headers through full chain
 - 18 tests: parsing, env var, priority chain, merging, integration, CLI flag
 
+## M69: Concurrency Scaling Analysis ✅
+- `xpyd-acc concurrency-sweep --baseline <url> --target <url> --dataset <path> --levels 1,2,4,8`
+- Runs batch comparison at each concurrency level
+- Reports divergence rate per concurrency level in a table
+- `SweepResult` and `SweepLevelResult` dataclasses with JSON serialization
+- `format_sweep()` for rich terminal output
+- `--json <path>` export
+- `--model`, `--api-key`, `--max-tokens`, sampling params, `--template` supported
+- Exit 1 if any level shows divergence (CI-friendly)
+- `concurrency_sweep.py` module with `run_sweep()` async function
+- Callback support via `on_level_complete` parameter
+- 20 tests covering dataclasses, formatting, mocked sweep runs, CLI integration
+
 ## M68: Endpoint A/B Testing with Statistical Significance ✅
 - `xpyd-acc ab-test --report-a <path> --report-b <path>` compares divergence rates
 - Fisher's exact test (pure Python, no scipy) for statistical significance
