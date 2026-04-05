@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from xpyd_acc.log import get_logger
+from xpyd_acc.response_validate import validate_chat_response
 
 logger = get_logger("batch_compare")
 
@@ -323,6 +324,7 @@ async def _collect_output(
     timeout: float = 120.0,
     request_id: str | None = None,
     cache: Any | None = None,
+    skip_validation: bool = False,
 ) -> tuple[str, list[dict[str, Any]], str]:
     """Send prompt to an OpenAI-compatible endpoint, return (text, logprobs_list, request_id).
 
@@ -334,6 +336,7 @@ async def _collect_output(
         request_id: Optional request ID to attach as X-Request-ID header.
             If None, no header is sent.
         cache: Optional ResponseCache instance for caching responses.
+        skip_validation: If True, skip response schema validation.
     """
     import httpx
 
@@ -368,6 +371,8 @@ async def _collect_output(
             )
             resp.raise_for_status()
             data = resp.json()
+        if not skip_validation:
+            validate_chat_response(data, require_logprobs=True)
         choice = data["choices"][0]
         text = choice["message"]["content"]
         logprobs_content = choice.get("logprobs", {}).get("content", [])
@@ -405,6 +410,7 @@ async def run_batch(
     cache: Any | None = None,
     rate_limiter: Any | None = None,
     normalizers: list | None = None,
+    skip_validation: bool = False,
 ) -> BatchReport:
     """Run all samples against both endpoints and produce a report.
 
@@ -415,6 +421,7 @@ async def run_batch(
         enable_request_ids: Attach X-Request-ID headers to API requests.
         deduplicate: If True, send each unique prompt only once per endpoint
             and reuse results for duplicate prompts. Saves API calls.
+        skip_validation: If True, skip response schema validation.
     """
     logger.info("Starting batch comparison: %d samples, concurrency=%d", len(samples), concurrency)
 
@@ -453,6 +460,7 @@ async def run_batch(
                 sampling_params=sampling_params, timeout=timeout,
                 request_id=b_rid if enable_request_ids else None,
                 cache=cache,
+                skip_validation=skip_validation,
             )
             if rate_limiter is not None:
                 await rate_limiter.acquire()
@@ -463,6 +471,7 @@ async def run_batch(
                 sampling_params=sampling_params, timeout=timeout,
                 request_id=t_rid if enable_request_ids else None,
                 cache=cache,
+                skip_validation=skip_validation,
             )
         return baseline_text, baseline_lp, b_rid_out, target_text, target_lp, t_rid_out
 
@@ -944,6 +953,7 @@ async def run_multi_batch(
     sampling_params: Any | None = None,
     timeout: float = 120.0,
     normalizers: list | None = None,
+    skip_validation: bool = False,
 ) -> MultiTargetBatchReport:
     """Run batch comparison of one baseline against multiple targets.
 
@@ -963,6 +973,7 @@ async def run_multi_batch(
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
+                skip_validation=skip_validation,
             )
         return sample.id, text, lp
 
@@ -986,6 +997,7 @@ async def run_multi_batch(
                 max_tokens=max_tokens, api_key=api_key,
                 retries=retries, retry_delay=retry_delay,
                 sampling_params=sampling_params, timeout=timeout,
+                skip_validation=skip_validation,
             )
 
         baseline_text, baseline_lp = baseline_outputs[sample.id]

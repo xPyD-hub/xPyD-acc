@@ -483,3 +483,12 @@
 - Missing optional fields default gracefully (classification, context_length, request_ids)
 - Round-trip fidelity: confidence intervals, request IDs, all statistics preserved
 - 8 tests covering round-trip, missing version, future version, minimal fields, CI fields
+
+## M57: Endpoint Response Validation (Schema Check) ✅
+- `response_validate.py` module with `validate_chat_response()` function
+- `ResponseValidationError` exception with descriptive messages
+- Validates: top-level structure, choices array, message.content, logprobs (when requested)
+- Integrated into `_collect_output()` in `batch_compare.py` and `LogprobsCollector.collect()`
+- `--skip-validation` CLI flag for non-standard endpoints
+- TOML config: `[defaults] skip_validation = true`
+- 12 tests covering valid responses, missing fields, malformed structure, skip flag

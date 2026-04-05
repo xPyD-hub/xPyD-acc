@@ -66,6 +66,7 @@ STARTER_CONFIG = """\
 # seed = 42
 # timeout = 120.0
 # rate_limit = 10.0
+# skip_validation = false
 
 [batch]
 # concurrency = 5

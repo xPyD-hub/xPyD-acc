@@ -156,6 +156,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Skip pre-flight endpoint health check",
     )
     bc.add_argument(
+        "--skip-validation", action="store_true", default=False,
+        help="Skip response schema validation",
+    )
+    bc.add_argument(
         "--template", default=None,
         help="Prompt template: built-in name (gsm8k, mmlu, etc.) or path to YAML/TOML file",
     )
@@ -1032,6 +1036,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 match_config=effective_match,
                 sampling_params=sampling,
                 timeout=args.timeout,
+                skip_validation=getattr(args, "skip_validation", False),
             )
             report = None  # not used in multi-target path
         else:
@@ -1058,6 +1063,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 cache=batch_cache,
                 rate_limiter=_rl,
                 normalizers=resolved_normalizers,
+                skip_validation=getattr(args, "skip_validation", False),
             )
     finally:
         if progress_ctx is not None:
@@ -1352,6 +1358,7 @@ async def _run_rerun(args: argparse.Namespace) -> None:
             timeout=args.timeout,
             deduplicate=getattr(args, "deduplicate", False),
             enable_request_ids=not getattr(args, "no_request_id", False),
+            skip_validation=getattr(args, "skip_validation", False),
         )
     finally:
         if progress_ctx is not None:
