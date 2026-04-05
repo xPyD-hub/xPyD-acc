@@ -69,6 +69,10 @@ class BatchReport:
     unknown_classification: int = 0
     # Divergence by context length buckets
     divergence_by_context_length: dict[str, dict[str, int]] = field(default_factory=dict)
+    # Confidence interval for divergence rate (Wilson score)
+    divergence_ci_lower: float | None = None
+    divergence_ci_upper: float | None = None
+    confidence_level: float | None = None
 
     def to_markdown(self, *, max_divergent_samples: int = 10) -> str:
         """Serialize the report to a Markdown string."""
@@ -89,6 +93,9 @@ class BatchReport:
             "likely_uncertainty": self.likely_uncertainty,
             "unknown_classification": self.unknown_classification,
             "divergence_by_context_length": self.divergence_by_context_length,
+            "divergence_ci_lower": self.divergence_ci_lower,
+            "divergence_ci_upper": self.divergence_ci_upper,
+            "confidence_level": self.confidence_level,
             "results": [
                 {
                     "sample_id": r.sample_id,
@@ -558,6 +565,16 @@ def compute_report(
     return report
 
 
+def apply_confidence(report: BatchReport, confidence: float = 0.95) -> None:
+    """Compute and attach Wilson CI to a BatchReport in-place."""
+    from xpyd_acc.confidence import wilson_ci
+
+    lower, upper = wilson_ci(report.divergent_samples, report.total_samples, confidence)
+    report.divergence_ci_lower = lower
+    report.divergence_ci_upper = upper
+    report.confidence_level = confidence
+
+
 def _truncate(text: str, max_length: int) -> str:
     """Truncate text to max_length, appending '...' if truncated."""
     if len(text) <= max_length:
@@ -608,8 +625,15 @@ def format_report(report: BatchReport) -> str:
         f"Total samples: {report.total_samples}",
         f"Matches: {report.match_samples}",
         f"Divergent: {report.divergent_samples} ({report.divergence_rate:.1%})",
-        "",
     ]
+
+    if report.divergence_ci_lower is not None and report.divergence_ci_upper is not None:
+        lines.append(
+            f"  {report.confidence_level:.0%} CI: "
+            f"[{report.divergence_ci_lower:.1%}, {report.divergence_ci_upper:.1%}]"
+        )
+
+    lines.append("")
 
     if report.divergent_samples > 0:
         lines.append("--- Classification ---")
@@ -662,6 +686,11 @@ def _to_markdown(report: BatchReport, *, max_divergent_samples: int = 10) -> str
     lines.append(f"| Matches | {report.match_samples} |")
     lines.append(f"| Divergent | {report.divergent_samples} |")
     lines.append(f"| Divergence rate | {report.divergence_rate:.1%} |")
+    if report.divergence_ci_lower is not None and report.divergence_ci_upper is not None:
+        lines.append(
+            f"| {report.confidence_level:.0%} CI | "
+            f"[{report.divergence_ci_lower:.1%}, {report.divergence_ci_upper:.1%}] |"
+        )
     lines.append("")
 
     if report.divergent_samples > 0:

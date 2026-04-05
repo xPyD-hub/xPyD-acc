@@ -57,6 +57,8 @@ class BatchConfig:
     deduplicate: bool = False
     cache_dir: str | None = None
     cache_ttl: float | None = None
+    confidence: bool = False
+    confidence_level: float = 0.95
 
 
 @dataclass
