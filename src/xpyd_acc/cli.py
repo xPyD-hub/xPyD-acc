@@ -411,6 +411,26 @@ def main(argv: list[str] | None = None) -> None:
     )
     lbias.add_argument("--json", dest="json_path", default=None, help="Export results as JSON")
 
+    # sensitivity
+    sens = sub.add_parser("sensitivity", help="Prompt sensitivity analysis")
+    sens.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    sens.add_argument("--target", required=True, help="Target endpoint URL")
+    sens.add_argument("--prompt", required=True, help="Prompt to test")
+    sens.add_argument("--model", default=None, help="Model name (default: default)")
+    sens.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
+    sens.add_argument("--api-key", default=None, help="API key for both endpoints")
+    sens.add_argument(
+        "--perturbations", type=int, default=5,
+        help="Number of prompt perturbations to generate (default: 5)",
+    )
+    sens.add_argument("--retries", type=int, default=None, help="Max retry attempts (default: 3)")
+    sens.add_argument(
+        "--retry-delay", type=float, default=None,
+        help="Base retry delay in seconds (default: 1.0)",
+    )
+    sens.add_argument("--json", dest="json_path", default=None, help="Export results as JSON")
+    _add_sampling_args(sens)
+
     kv = sub.add_parser("check-kv", help="Check KV cache numerical accuracy")
     kv.add_argument("--baseline", required=True, help="Path to baseline KV cache (.npz)")
     kv.add_argument("--target", required=True, help="Path to target KV cache (.npz)")
@@ -919,6 +939,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_entropy(args)
     elif args.command == "length-bias":
         _run_length_bias(args)
+    elif args.command == "sensitivity":
+        asyncio.run(_run_sensitivity(args))
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -2959,4 +2981,35 @@ def _run_length_bias(args: argparse.Namespace) -> None:
         print(f"\nExported to {args.json_path}")
 
     if result.classification != "no_bias":
+        raise SystemExit(1)
+
+
+async def _run_sensitivity(args: argparse.Namespace) -> None:
+    """Run prompt sensitivity analysis."""
+    from pathlib import Path
+
+    from xpyd_acc.sensitivity import format_sensitivity, run_sensitivity
+
+    result = await run_sensitivity(
+        baseline_url=args.baseline,
+        target_url=args.target,
+        prompt=args.prompt,
+        model=args.model or "default",
+        max_tokens=getattr(args, "max_tokens", None) or 64,
+        api_key=getattr(args, "api_key", None),
+        perturbation_count=args.perturbations,
+        retries=getattr(args, "retries", None) or 3,
+        retry_delay=getattr(args, "retry_delay", None) or 1.0,
+        temperature=getattr(args, "temperature", None),
+        top_p=getattr(args, "top_p", None),
+        seed=getattr(args, "seed", None),
+    )
+
+    print(format_sensitivity(result))
+
+    if args.json_path:
+        Path(args.json_path).write_text(result.to_json())
+        print(f"\nExported to {args.json_path}")
+
+    if result.classification == "systematic":
         raise SystemExit(1)

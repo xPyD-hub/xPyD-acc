@@ -657,3 +657,15 @@
 - Exit 1 if significant bias detected (CI-friendly)
 - Rich terminal output with summary and distribution breakdown
 - 28 tests covering t-test, analysis, formatting, file I/O, CLI integration
+
+## M72: Prompt Sensitivity Analysis ✅
+- `xpyd-acc sensitivity --baseline <url> --target <url> --prompt <text>` tests if divergence persists across prompt perturbations
+- Generates N prompt perturbations (whitespace variations, prefix/suffix changes)
+- Runs logprobs comparison on original + each perturbation
+- Classification: `systematic` (all diverge), `sensitive` (some diverge), `robust` (none diverge)
+- `--perturbations <n>` configurable (default 5)
+- `--json <path>` export
+- Exit 0 if robust, exit 1 if systematic (CI-friendly)
+- Sampling params support (--temperature, --top-p, --seed, --profile)
+- `sensitivity.py` module: `generate_perturbations()`, `run_sensitivity()`, `SensitivityResult`, `format_sensitivity()`
+- 22 tests covering perturbation generation, classification, analysis, formatting, JSON export, CLI integration
