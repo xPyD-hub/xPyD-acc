@@ -369,6 +369,27 @@ def main(argv: list[str] | None = None) -> None:
         help="Write completion script to file instead of stdout",
     )
 
+    # bisect: auto-bisect divergence by context length
+    bis = sub.add_parser("bisect", help="Binary search for min context length causing divergence")
+    bis.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    bis.add_argument("--target", required=True, help="Target endpoint URL")
+    bis.add_argument("--prompt", required=True, help="Full prompt text to bisect")
+    bis.add_argument("--model", default="default", help="Model name")
+    bis.add_argument("--api-key", default=None, help="API key for endpoints")
+    bis.add_argument("--min-length", type=int, default=None, help="Minimum prefix length")
+    bis.add_argument("--max-length", type=int, default=None, help="Maximum prefix length")
+    bis.add_argument("--retries", type=int, default=None, help="Max retry attempts (default: 3)")
+    bis.add_argument(
+        "--retry-delay", type=float, default=None,
+        help="Base retry delay in seconds (default: 1.0)",
+    )
+    bis.add_argument(
+        "--timeout", type=float, default=None,
+        help="HTTP request timeout in seconds (default: 120.0)",
+    )
+    bis.add_argument("--json", default=None, metavar="PATH", help="Export result as JSON")
+    _add_sampling_args(bis)
+
     # snapshot capture
     sc = sub.add_parser("snapshot", help="Capture baseline outputs as a snapshot")
     sc.add_argument("action", choices=["capture"], help="Snapshot action")
@@ -644,6 +665,8 @@ def main(argv: list[str] | None = None) -> None:
         _run_history(args)
     elif args.command == "benchmark":
         asyncio.run(_run_benchmark(args))
+    elif args.command == "bisect":
+        asyncio.run(_run_bisect(args))
     else:
         print(f"xpyd-acc {args.command} — not yet implemented")
 
@@ -2037,3 +2060,50 @@ def _run_config(args: argparse.Namespace) -> None:
             else:
                 print(f"\n⚠️  {path} has warnings but no errors")
                 sys.exit(0)
+
+
+async def _run_bisect(args: argparse.Namespace) -> None:
+    """Run bisect to find minimum divergence context length."""
+    from xpyd_acc.bisect import run_bisect
+    from xpyd_acc.sampling import SamplingParams
+
+    sp = SamplingParams(
+        temperature=getattr(args, "temperature", None),
+        top_p=getattr(args, "top_p", None),
+        seed=getattr(args, "seed", None),
+    )
+
+    def progress(iteration: int, length: int, diverges: bool) -> None:
+        status = "❌ DIVERGES" if diverges else "✅ MATCH"
+        print(f"  Step {iteration}: length={length} → {status}")
+
+    print(f"🔍 Bisecting divergence over prompt length ({len(args.prompt)} chars)...")
+    result = await run_bisect(
+        baseline_url=args.baseline,
+        target_url=args.target,
+        prompt=args.prompt,
+        model=args.model,
+        min_length=getattr(args, "min_length", None),
+        max_length=getattr(args, "max_length", None),
+        api_key=getattr(args, "api_key", None),
+        sampling=sp,
+        retries=args.retries or 3,
+        retry_delay=args.retry_delay or 1.0,
+        timeout=args.timeout or 120.0,
+        progress_callback=progress,
+    )
+
+    print()
+    if result.never_diverges:
+        print("✅ No divergence found at any tested length.")
+    elif result.always_diverges:
+        print(f"❌ Divergence at all tested lengths (minimum tested: {result.threshold_length}).")
+    else:
+        print(f"🎯 Divergence threshold: {result.threshold_length} characters.")
+    print(f"   Total iterations: {result.total_iterations}")
+
+    json_path = getattr(args, "json", None)
+    if json_path:
+        import pathlib
+        pathlib.Path(json_path).write_text(result.to_json())
+        print(f"   Exported to {json_path}")
