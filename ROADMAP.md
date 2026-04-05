@@ -595,3 +595,15 @@
 - All callers updated: batch_compare, logprobs, notify, reproducibility
 - Fixed pre-existing bug: reproducibility.py used retry_async as decorator
 - 25 tests: RetryResult, RetryStats aggregation, serialization, report integration, format, round-trip
+
+## M67: Custom HTTP Headers for API Requests ✅
+- `--header "Key: Value"` CLI flag (repeatable) on `batch-compare`
+- `headers.py` module: `parse_header_arg()`, `parse_header_args()`, `parse_env_headers()`, `resolve_headers()`, `merge_with_defaults()`
+- Environment variable: `XPYD_ACC_HEADERS` (comma-separated `Key:Value` pairs)
+- TOML config: `[defaults] headers = {"X-Custom" = "value"}`
+- Priority chain: CLI > env > config (consistent with other settings)
+- Custom headers merged with default Authorization header (custom takes precedence)
+- `_collect_output()` accepts `custom_headers` parameter
+- `run_batch()` and `run_multi_batch()` forward custom headers
+- CLI `batch-compare` resolves and passes headers through full chain
+- 18 tests: parsing, env var, priority chain, merging, integration, CLI flag

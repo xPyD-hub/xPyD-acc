@@ -265,6 +265,10 @@ def main(argv: list[str] | None = None) -> None:
         "--checkpoint-clear", action="store_true", default=False,
         help="Delete existing checkpoint file before starting (fresh run)",
     )
+    bc.add_argument(
+        "--header", action="append", default=None, dest="headers",
+        help="Custom HTTP header as 'Key: Value' (repeatable). Overrides defaults.",
+    )
 
     # Cache management subcommand
     cache_cmd = sub.add_parser("cache", help="Manage response cache")
@@ -1077,6 +1081,16 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             cache_ttl = getattr(args, "cache_ttl", None) or DEFAULT_TTL
             batch_cache = ResponseCache(cache_dir=cache_dir, ttl=cache_ttl)
 
+        # Resolve custom headers
+        from xpyd_acc.headers import parse_env_headers, parse_header_args, resolve_headers
+
+        cli_hdrs = parse_header_args(getattr(args, "headers", None))
+        env_hdrs = parse_env_headers()
+        cfg_hdrs = args._config.get("defaults", {}).get("headers") if args._config else None
+        custom_headers = resolve_headers(
+            cli_headers=cli_hdrs, env_headers=env_hdrs, config_headers=cfg_hdrs,
+        ) or None
+
         is_multi = len(target_urls) > 1
 
         if is_multi:
@@ -1096,6 +1110,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 sampling_params=sampling,
                 timeout=args.timeout,
                 skip_validation=getattr(args, "skip_validation", False),
+                custom_headers=custom_headers,
             )
             report = None  # not used in multi-target path
         else:
@@ -1125,6 +1140,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 skip_validation=getattr(args, "skip_validation", False),
                 checkpoint_path=getattr(args, "checkpoint", None),
                 checkpoint_clear=getattr(args, "checkpoint_clear", False),
+                custom_headers=custom_headers,
             )
     finally:
         if progress_ctx is not None:
