@@ -521,6 +521,17 @@ def main(argv: list[str] | None = None) -> None:
         help="Path to config file (default: xpyd-acc.toml)",
     )
 
+    # cluster (M49)
+    cluster_cmd = sub.add_parser("cluster", help="Cluster divergent samples by divergence pattern")
+    cluster_cmd.add_argument("--input", required=True, help="Path to batch report JSON file")
+    cluster_cmd.add_argument(
+        "--clusters", type=int, default=None,
+        help="Number of clusters (auto-select if omitted)",
+    )
+    cluster_cmd.add_argument(
+        "--json", dest="cluster_json", default=None, help="Export clusters as JSON",
+    )
+
     # summary (M48)
     summary_cmd = sub.add_parser("summary", help="Compact summary of a batch report")
     summary_cmd.add_argument("report", help="Path to batch report JSON file")
@@ -566,6 +577,11 @@ def main(argv: list[str] | None = None) -> None:
         except KeyError as exc:
             parser.error(str(exc))
         apply_profile(vars(args), profile)
+
+    # Handle 'cluster' subcommand (M49)
+    if args.command == "cluster":
+        _run_cluster(args)
+        return
 
     # Handle 'summary' subcommand (M48)
     if args.command == "summary":
@@ -2141,3 +2157,60 @@ async def _run_bisect(args: argparse.Namespace) -> None:
         import pathlib
         pathlib.Path(json_path).write_text(result.to_json())
         print(f"   Exported to {json_path}")
+
+
+def _run_cluster(args: argparse.Namespace) -> None:
+    """Run the cluster subcommand."""
+    import json
+    from pathlib import Path
+
+    from rich.console import Console
+    from rich.table import Table
+
+    from xpyd_acc.cluster import cluster_divergences
+
+    console = Console()
+    input_path = Path(args.input)
+    if not input_path.exists():
+        console.print(f"[red]Error:[/red] File not found: {input_path}")
+        raise SystemExit(1)
+
+    with open(input_path) as f:
+        report = json.load(f)
+
+    result = cluster_divergences(report, k=args.clusters)
+
+    if result.total_divergent == 0:
+        console.print("[green]No divergent samples to cluster.[/green]")
+        return
+
+    console.print("\n[bold]Divergence Pattern Clustering[/bold]")
+    console.print(f"  Total divergent samples: {result.total_divergent}")
+    console.print(f"  Excluded matched samples: {result.excluded_matched}")
+    console.print(f"  Clusters (K): {result.k}")
+    if result.silhouette_score is not None:
+        console.print(f"  Silhouette score: {result.silhouette_score:.3f}")
+
+    table = Table(title="Clusters")
+    table.add_column("ID", style="cyan")
+    table.add_column("Size", style="green")
+    table.add_column("Avg Div Index", style="yellow")
+    table.add_column("Avg Logprob Gap", style="yellow")
+    table.add_column("Avg Context Len", style="yellow")
+    table.add_column("Representative", style="magenta")
+
+    for c in result.clusters:
+        table.add_row(
+            str(c.cluster_id),
+            str(c.size),
+            f"{c.avg_divergence_index:.1f}",
+            f"{c.avg_logprob_gap:.4f}",
+            f"{c.avg_context_length:.0f}",
+            c.representative_sample_id,
+        )
+
+    console.print(table)
+
+    if args.cluster_json:
+        result.to_json(args.cluster_json)
+        console.print(f"\n  Exported to {args.cluster_json}")
