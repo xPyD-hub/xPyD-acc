@@ -127,7 +127,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Use saved snapshot as baseline (mutually exclusive with --baseline)",
     )
     bc.add_argument("--dataset", required=True, help="Path to JSONL dataset file")
-    bc.add_argument("--model", default=None, help="Model name (default: default)")
+    bc.add_argument(
+        "--model", default=None, action="append",
+        help="Model name (repeatable for multi-model comparison; default: default)",
+    )
     bc.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
     bc.add_argument("--api-key", default=None, help="API key for endpoints")
     bc.add_argument(
@@ -1185,14 +1188,50 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             cli_headers=cli_hdrs, env_headers=env_hdrs, config_headers=cfg_hdrs,
         ) or None
 
+        # Normalize model list: --model can be repeated for multi-model
+        model_list: list[str] = args.model if args.model else ["default"]
+        is_multi_model = len(model_list) > 1
+        single_model = model_list[0]
+
         is_multi = len(target_urls) > 1
 
-        if is_multi:
+        if is_multi_model and not is_multi:
+            # Multi-model, single target
+            from xpyd_acc.multi_model import (
+                format_multi_model_report,
+                run_multi_model,
+            )
+
+            mm_report = await run_multi_model(
+                samples,
+                args.baseline,
+                target_urls[0],
+                model_list,
+                max_tokens=args.max_tokens,
+                api_key=args.api_key,
+                logprob_gap_threshold=args.logprob_gap_threshold,
+                concurrency=args.concurrency,
+                retries=args.retries,
+                retry_delay=args.retry_delay,
+                match_config=effective_match,
+                sampling_params=sampling,
+                timeout=args.timeout,
+                skip_validation=getattr(args, "skip_validation", False),
+                custom_headers=custom_headers,
+            )
+            report = None
+            multi_report = None
+        else:
+            mm_report = None
+
+        if mm_report is not None:
+            pass  # handled after finally block
+        elif is_multi:
             multi_report = await run_multi_batch(
                 samples,
                 args.baseline,
                 target_urls,
-                model=args.model,
+                model=single_model,
                 max_tokens=args.max_tokens,
                 api_key=args.api_key,
                 logprob_gap_threshold=args.logprob_gap_threshold,
@@ -1215,7 +1254,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
                 samples,
                 args.baseline,
                 target_urls[0],
-                model=args.model,
+                model=single_model,
                 max_tokens=args.max_tokens,
                 api_key=args.api_key,
                 logprob_gap_threshold=args.logprob_gap_threshold,
@@ -1247,9 +1286,31 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             print(f"\nCache: {cs.hits} hits, {cs.misses} misses ({cs.hit_rate:.0%} hit rate)")
 
     # Apply cost estimation if pricing is configured
-    _apply_cost_to_report(args, report if report is not None else multi_report)
+    cost_target = report or multi_report or mm_report
+    _apply_cost_to_report(args, cost_target)
 
-    if multi_report is not None:
+    if mm_report is not None:
+        # Multi-model mode
+        from xpyd_acc.multi_model import format_multi_model_report
+
+        print()
+        print(format_multi_model_report(mm_report))
+
+        if args.json_path:
+            from pathlib import Path
+            Path(args.json_path).write_text(mm_report.to_json())
+            print(f"\nJSON exported to {args.json_path}")
+
+        if args.markdown:
+            from pathlib import Path
+            Path(args.markdown).write_text(mm_report.to_markdown())
+            print(f"\nMarkdown exported to {args.markdown}")
+
+        # Exit 1 if any model has divergences
+        if any(r.divergent_samples > 0 for r in mm_report.per_model.values()):
+            sys.exit(1)
+
+    elif multi_report is not None:
         # Multi-target mode
         for url in target_urls:
             print(f"\n--- Target: {url} ---")
