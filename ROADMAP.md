@@ -422,3 +422,11 @@
 - Compatible with Jenkins, GitLab CI, GitHub Actions test reporters
 - `junit.py` module with `BatchReport.to_junit()` method
 - Tests for XML generation, multi-target, edge cases, CLI integration
+
+## M51: History Purge Command ✅
+- `xpyd-acc history purge --older-than <days>` removes entries older than N days
+- `--keep-last <n>` always retains the most recent N entries regardless of age
+- `--dry-run` shows what would be removed without deleting
+- `HistoryStore.purge()` method for programmatic use
+- Rich terminal output with table of purged entries
+- 8 tests covering purge logic, keep_last, dry-run, empty store, CLI integration
