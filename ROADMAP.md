@@ -371,3 +371,12 @@
 - Normalizers applied before comparison (after existing tolerance matching)
 - TOML config: `[matching] normalizers = ["strip_thinking_tags"]`
 - Tests for built-in normalizers and custom normalizer loading
+
+## M46: Top-K Logprob Distribution Analysis ✅
+- `--top-k <int>` flag (default 5) for `compare-logprobs`
+- Collect top-K logprobs from each endpoint per position
+- KL divergence, Jensen-Shannon divergence, Jaccard top-K overlap per position
+- `TokenDistribution` dataclass, `DistributionReport` with aggregate metrics
+- `--kl-threshold <float>` flag to flag positions exceeding threshold
+- `distribution.py` module with all metric computations
+- 22 tests covering KL/JS computation, overlap, edge cases
