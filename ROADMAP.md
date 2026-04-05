@@ -462,3 +462,14 @@
 - `filter` gains `--annotation-label`, `--annotated`, `--unannotated` flags
 - `annotations_for_markdown()` helper for report integration
 - 19 tests covering CRUD, persistence, CLI integration, edge cases
+
+## M55: Model Fingerprinting ✅
+- `xpyd-acc fingerprint --baseline <url>` sends deterministic probes and prints a 16-char hash
+- `xpyd-acc fingerprint --baseline <url> --target <url>` compares two endpoint fingerprints
+- 5 default probes with temperature=0, seed=42, max_tokens=16
+- SHA-256 hash of concatenated outputs for quick identity check
+- Per-probe diff on mismatch showing baseline vs target output
+- `--json <path>` export, `--model`, `--api-key`, `--retries`, `--timeout` flags
+- Exit 0 on match, exit 1 on mismatch (CI-friendly)
+- `fingerprint.py` module: `collect_fingerprint()`, `compare_fingerprints()`, dataclasses
+- 17 tests covering hash computation, comparison, mocked collection, edge cases
