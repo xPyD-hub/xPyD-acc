@@ -18,6 +18,7 @@ from .analysis import (
     _run_sensitivity,
     _run_watch,
     handle_root_cause,
+    handle_token_diff,
 )
 from .batch import _run_batch_compare
 from .benchmark import (
@@ -117,6 +118,7 @@ def main(argv: list[str] | None = None) -> None:
         "reproducibility": lambda: _run_reproducibility(args),
         "fingerprint": lambda: _run_fingerprint(args),
         "root-cause": lambda: handle_root_cause(args),
+        "token-diff": lambda: handle_token_diff(args),
         "filter": lambda: _run_filter(args),
         "init": lambda: _run_init(args),
         "config": lambda: _run_config(args),

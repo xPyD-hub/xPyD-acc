@@ -229,3 +229,32 @@ def handle_root_cause(args: argparse.Namespace) -> None:
     if args.rc_json:
         Path(args.rc_json).write_text(analysis.to_json())
         print(f"\nExported to {args.rc_json}")
+
+
+def handle_token_diff(args: argparse.Namespace) -> None:
+    """Handle the token-diff subcommand."""
+    import json as _json
+    from pathlib import Path
+
+    from ..token_diff import diff_from_file, format_token_diff
+
+    if not args.sample and not args.all_divergent:
+        print("Error: must specify --sample or --all-divergent")
+        raise SystemExit(1)
+
+    diffs = diff_from_file(
+        report_path=args.report,
+        sample_id=args.sample,
+        all_divergent=args.all_divergent,
+        context=args.context,
+    )
+
+    plain = args.diff_format == "plain"
+    for diff in diffs:
+        print(format_token_diff(diff, plain=plain))
+        print()
+
+    if args.td_json:
+        data = [d.to_dict() for d in diffs]
+        Path(args.td_json).write_text(_json.dumps(data, indent=2))
+        print(f"Exported to {args.td_json}")

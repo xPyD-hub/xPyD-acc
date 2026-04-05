@@ -63,3 +63,39 @@ Added `xpyd-acc root-cause --report <path>` CLI subcommand that analyzes batch r
 ### Tests
 
 21 tests all passing. Full suite: 1085 passed.
+
+---
+
+## Iteration: M75 — Side-by-Side Token Diff Viewer
+
+**Date:** 2026-04-06
+**Issue:** #163
+**Branch:** feat/m75-token-diff
+
+### What was done
+
+- Created `src/xpyd_acc/token_diff.py` module with:
+  - `TokenDiffLine` and `TokenDiff` dataclasses with JSON serialization
+  - `build_token_diff()` — builds aligned diff with context window
+  - `format_token_diff()` — rich terminal output with ANSI colors or plain text
+  - `build_from_report()`, `build_all_divergent()`, `diff_from_file()` helpers
+  - Color-coded output: green (match), red (mismatch), yellow (logprob warning), cyan (one-sided)
+  - Logprob annotations at divergence point
+- Added CLI subcommand `xpyd-acc token-diff`:
+  - `--report`, `--sample`, `--all-divergent`, `--context`, `--format`, `--json`
+- Created `tests/test_token_diff.py` with 25 tests covering:
+  - Dataclass serialization, diff building, empty/asymmetric outputs
+  - Context window, logprob annotations, logprob warning status
+  - Report lookup, divergent filtering, file I/O
+  - CLI help, sample mode, JSON export, error handling
+
+### Tests
+
+25 tests all passing.
+
+## Iteration History
+
+| # | Date | Task | Result | Reviewer Comments |
+|---|------|------|--------|-------------------|
+| M74 | 2026-04-05 | Divergence Root Cause Heuristics | ✅ merged | Both approved |
+| M75 | 2026-04-06 | Side-by-Side Token Diff Viewer | ⏳ PR pending | — |
