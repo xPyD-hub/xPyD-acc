@@ -18,6 +18,7 @@ from .analysis import (
     _run_length_bias,
     _run_sensitivity,
     _run_watch,
+    handle_heatmap,
     handle_root_cause,
     handle_token_diff,
 )
@@ -124,6 +125,7 @@ def main(argv: list[str] | None = None) -> None:
         "fingerprint": lambda: _run_fingerprint(args),
         "root-cause": lambda: handle_root_cause(args),
         "token-diff": lambda: handle_token_diff(args),
+        "heatmap": lambda: handle_heatmap(args),
         "filter": lambda: _run_filter(args),
         "serve": lambda: _run_serve(args),
         "grafana-dashboard": lambda: _run_grafana_dashboard(args),

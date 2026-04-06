@@ -775,7 +775,7 @@
 - `auto_threshold.py` module: `analyze_thresholds()`, `ThresholdRecommendation`, `format_recommendations()`
 - 12 tests covering threshold computation, edge cases, formatting, JSON export, CLI integration
 
-## M82: Interactive REPL for Exploratory Comparison
+## M82: Interactive REPL for Exploratory Comparison ✅
 - `xpyd-acc repl --baseline <url> --target <url> --model <model>` launches interactive shell
 - Type a prompt → sends to both endpoints → shows side-by-side output comparison
 - Built-in REPL commands: `:logprobs` (toggle logprob display), `:diff` (show token diff of last result)
@@ -787,6 +787,38 @@
 - `repl.py` module: `run_repl()`, `ReplSession`, `ReplCommand`
 - 12 tests covering session state, command parsing, export, edge cases, CLI integration
 
+## M83: Divergence Heatmap by Token Position
+- `xpyd-acc heatmap --report <path>` analyzes divergence frequency by token position across all samples
+- Bin token positions into configurable buckets (e.g., 0-10, 10-50, 50-100, 100+)
+- Per-bucket: divergence count, divergence rate, avg logprob gap
+- `HeatmapBucket` and `HeatmapReport` dataclasses with `to_dict()` serialization
+- `--buckets <int>` flag to control number of position buckets (default 10)
+- `--json <path>` export
+- Rich terminal bar chart showing divergence frequency by position range
+- Helps answer: "Do divergences cluster at certain token positions (e.g., early prefill vs late decode)?"
+- `heatmap.py` module: `compute_heatmap()`, `HeatmapReport`, `format_heatmap()`
+- 12 tests covering bucket computation, edge cases, formatting, JSON export, CLI integration
+
+## M84: Endpoint Response Time Regression Detection
+- `xpyd-acc latency-regression --old <benchmark.json> --new <benchmark.json>` compares latency benchmarks
+- Welch's t-test for statistical significance of latency changes
+- Reports: mean diff, p-value, effect size (Cohen's d), verdict (faster/slower/unchanged)
+- Per-percentile comparison (p50, p95, p99)
+- `--alpha <float>` significance level (default 0.05)
+- `--json <path>` export
+- Exit 0 if no regression, exit 1 if significant slowdown (CI-friendly)
+- `latency_regression.py` module: `LatencyRegressionResult`, `run_latency_regression()`, `format_latency_regression()`
+- 12 tests covering t-test, effect size, formatting, JSON export, CLI integration
+
+## M85: Offline Mode — File-Based Comparison Without Endpoints
+- `xpyd-acc compare-files --baseline <outputs.jsonl> --target <outputs.jsonl>` compares pre-collected outputs
+- JSONL format: `{"id": "...", "output": "...", "logprobs": [...]}` per line
+- Full batch comparison pipeline (matching, classification, statistics) without any API calls
+- Integrates with all export formats (JSON, CSV, Markdown, JUnit, Prometheus)
+- Useful for comparing outputs collected from different environments/clusters
+- `file_compare.py` module: `load_outputs()`, `run_file_compare()`
+- 12 tests covering file loading, comparison, export integration, CLI
+
 ---
 
 ## Roadmap: Deep Diagnostic Capabilities
@@ -796,7 +828,7 @@ below shift focus to **framework-level deep diagnostics** — capabilities that 
 beyond API-level black-box comparison and provide the kind of insight you can't
 get from a Python script calling `/v1/chat/completions`.
 
-## M83: Automatic KV Cache Export from vLLM
+## M87: Automatic KV Cache Export from vLLM
 - The biggest gap in the current toolchain: `check-kv` requires pre-existing `.npz` dumps, but extracting KV cache from a running vLLM instance is the hardest part of the workflow
 - Provide a vLLM plugin / monkey-patch that intercepts the KV cache at configurable points:
   - After prefill completes (before KV transfer)
@@ -809,7 +841,7 @@ get from a Python script calling `/v1/chat/completions`.
 - Target vLLM ≥ 0.6.x with `--enable-disaggregated-prefill`
 - This is the single highest-value feature for making xPyD-acc a real diagnostic tool vs. a glorified diff script
 
-## M84: Framework-Level Inference Hooks
+## M88: Framework-Level Inference Hooks
 - Go beyond API-level logprobs comparison — hook into the inference engine to capture intermediate states
 - Provide a hook interface that can be injected into vLLM / SGLang inference loops:
   - Post-prefill hook: capture hidden states, attention weights, KV cache state
@@ -822,7 +854,7 @@ get from a Python script calling `/v1/chat/completions`.
 - Initial target: vLLM (most common PD disaggregation framework)
 - Stretch: SGLang, TensorRT-LLM
 
-## M85: PD Topology-Aware Testing
+## M89: PD Topology-Aware Testing
 - Current tools treat the endpoint as a black box — send request, get response
 - In real PD deployments behind xPyD-proxy, there are multiple prefill and decode nodes
 - Topology-aware mode:
@@ -835,7 +867,7 @@ get from a Python script calling `/v1/chat/completions`.
 - Detects: one bad GPU in a pool, one node with wrong precision config, asymmetric NCCL issues
 - Critical for production clusters where "5% divergence rate" might be "one node is broken, the rest are fine"
 
-## M86: Hardware Precision Baseline Library
+## M90: Hardware Precision Baseline Library
 - Collect and maintain reference data for expected numerical differences across:
   - GPU architectures: A100 vs H100 vs H200 vs Gaudi2 vs Gaudi3
   - Precision modes: FP16 vs BF16 vs FP8 vs INT8-KV

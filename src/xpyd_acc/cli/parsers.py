@@ -51,6 +51,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_auto_threshold(sub)
     _register_repl(sub)
     _register_latency_regression(sub)
+    _register_heatmap(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -624,3 +625,14 @@ def _register_latency_regression(sub):
         "--json", default=None,
         help="Export regression results as JSON to this path",
     )
+def _register_heatmap(sub):
+    hm = sub.add_parser(
+        "heatmap",
+        help="Divergence heatmap by token position",
+    )
+    hm.add_argument("--report", required=True, help="Path to batch report JSON")
+    hm.add_argument(
+        "--buckets", type=int, default=10,
+        help="Number of position buckets (default: 10)",
+    )
+    hm.add_argument("--json", default=None, help="Export heatmap as JSON to this path")

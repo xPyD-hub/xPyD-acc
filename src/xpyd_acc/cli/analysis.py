@@ -284,3 +284,16 @@ def _run_latency_regression(args: argparse.Namespace) -> None:
 
     if result.verdict == "slower":
         raise SystemExit(1)
+
+
+def handle_heatmap(args: argparse.Namespace) -> None:
+    """Run the heatmap subcommand."""
+    from xpyd_acc.batch_compare import load_report
+    from xpyd_acc.heatmap import compute_heatmap, format_heatmap
+
+    report = load_report(args.report)
+    heatmap = compute_heatmap(report.results, num_buckets=args.buckets)
+    print(format_heatmap(heatmap))
+    if args.json:
+        heatmap.to_json(args.json)
+        print(f"\nHeatmap exported to {args.json}")
