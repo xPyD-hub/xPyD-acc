@@ -739,7 +739,7 @@
 - `grafana.py` module: `generate_dashboard()`, `GrafanaDashboard` dataclass
 - 10 tests covering dashboard generation, panels, template vars, JSON export, CLI integration
 
-## M79: Parallel Multi-Dataset Batch Run
+## M79: Parallel Multi-Dataset Batch Run ✅
 - `batch-compare --dataset d1.jsonl --dataset d2.jsonl ...` runs multiple datasets in one command
 - Concurrent dataset execution (datasets run in parallel, samples within each dataset also concurrent)
 - Per-dataset report + combined summary report
@@ -750,3 +750,15 @@
 - Template support: `--template` applies to all datasets, or per-dataset templates via TOML config
 - TOML config: `[multi_dataset]` section with dataset list and per-dataset overrides
 - Useful for running GSM8K + MMLU + HumanEval in one command
+
+## M80: Multi-Dataset CLI Integration
+- `batch-compare --dataset d1.jsonl --dataset d2.jsonl` accepts multiple `--dataset` flags
+- When multiple datasets given, uses `run_multi_dataset()` from `multi_dataset.py`
+- Per-dataset results printed with pass/fail indicators
+- Overall divergence rate across all datasets
+- `--fail-threshold` applies per-dataset (any exceeding → exit 1)
+- JSON export via `--json` includes per-dataset breakdowns
+- Markdown export via `--markdown` includes per-dataset sections
+- Template support: `--template` applies to all datasets
+- Progress bars per dataset
+- Tests for CLI integration with multiple datasets

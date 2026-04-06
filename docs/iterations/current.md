@@ -128,3 +128,36 @@ Added `multi_dataset.py` module for running multiple evaluation datasets concurr
 - Callback invocation
 - Kwargs forwarding
 - Empty dataset map handling
+
+---
+
+## M80: Multi-Dataset CLI Integration
+
+**Date:** 2026-04-06
+**Issue:** #173
+**Status:** In progress
+
+### Problem
+M79 added `multi_dataset.py` with `run_multi_dataset()` but no CLI integration — users cannot invoke multi-dataset runs from the command line.
+
+### Solution
+- Made `--dataset` flag repeatable (argparse `action="append"`)
+- When >1 dataset given, `_run_batch_compare` delegates to `_run_multi_dataset()`
+- Added `_run_multi_dataset()` in `batch.py`: loads datasets, runs concurrent comparison, prints results
+- Per-dataset `--fail-threshold` checking
+- JSON/Markdown export support
+
+### Files Changed
+- `src/xpyd_acc/cli/parsers.py` (--dataset becomes repeatable)
+- `src/xpyd_acc/cli/batch.py` (multi-dataset routing + handler)
+- `tests/test_multi_dataset_cli.py` (new, 10 tests)
+- `ROADMAP.md` (M79 ✅, M80 added)
+
+### Tests
+10 tests covering:
+- Dataclass aggregation
+- JSON/Markdown export
+- Terminal formatting
+- CLI flag repeatability
+- Multi-dataset delegation
+- Single-dataset backward compatibility

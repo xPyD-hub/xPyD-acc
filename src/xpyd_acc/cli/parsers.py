@@ -113,7 +113,10 @@ def _register_batch(sub):
         "--snapshot", default=None, metavar="SNAPSHOT_JSON",
         help="Use saved snapshot as baseline (mutually exclusive with --baseline)",
     )
-    bc.add_argument("--dataset", required=True, help="Path to JSONL dataset file")
+    bc.add_argument(
+        "--dataset", required=True, action="append",
+        help="Path to dataset file (repeatable for multi-dataset runs)",
+    )
     bc.add_argument("--model", default=None, help="Model name (default: default)")
     bc.add_argument("--max-tokens", type=int, default=None, help="Max tokens (default: 64)")
     bc.add_argument("--api-key", default=None, help="API key for endpoints")
