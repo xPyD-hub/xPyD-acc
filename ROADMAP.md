@@ -751,7 +751,7 @@
 - TOML config: `[multi_dataset]` section with dataset list and per-dataset overrides
 - Useful for running GSM8K + MMLU + HumanEval in one command
 
-## M80: Multi-Dataset CLI Integration
+## M80: Multi-Dataset CLI Integration ✅
 - `batch-compare --dataset d1.jsonl --dataset d2.jsonl` accepts multiple `--dataset` flags
 - When multiple datasets given, uses `run_multi_dataset()` from `multi_dataset.py`
 - Per-dataset results printed with pass/fail indicators
