@@ -786,3 +786,63 @@
 - Readline-style line editing and history (via stdlib `readline`)
 - `repl.py` module: `run_repl()`, `ReplSession`, `ReplCommand`
 - 12 tests covering session state, command parsing, export, edge cases, CLI integration
+
+---
+
+## Roadmap: Deep Diagnostic Capabilities
+
+The milestones above built out CLI, reporting, and workflow tooling. The milestones
+below shift focus to **framework-level deep diagnostics** — capabilities that go
+beyond API-level black-box comparison and provide the kind of insight you can't
+get from a Python script calling `/v1/chat/completions`.
+
+## M83: Automatic KV Cache Export from vLLM
+- The biggest gap in the current toolchain: `check-kv` requires pre-existing `.npz` dumps, but extracting KV cache from a running vLLM instance is the hardest part of the workflow
+- Provide a vLLM plugin / monkey-patch that intercepts the KV cache at configurable points:
+  - After prefill completes (before KV transfer)
+  - After KV transfer lands on the decode node
+  - During decode at configurable step intervals
+- Export as `.npz` with layer/head/position metadata for direct use with `check-kv`
+- `xpyd-acc capture-kv --url <vllm-endpoint> --prompt <text> --output <path>` CLI command
+- Support for selective layer export (`--layers 0,1,15,31`) to avoid dumping hundreds of GB
+- Handle multi-GPU TP layouts: reconstruct full KV from sharded tensors
+- Target vLLM ≥ 0.6.x with `--enable-disaggregated-prefill`
+- This is the single highest-value feature for making xPyD-acc a real diagnostic tool vs. a glorified diff script
+
+## M84: Framework-Level Inference Hooks
+- Go beyond API-level logprobs comparison — hook into the inference engine to capture intermediate states
+- Provide a hook interface that can be injected into vLLM / SGLang inference loops:
+  - Post-prefill hook: capture hidden states, attention weights, KV cache state
+  - Post-KV-transfer hook: capture received KV cache on decode node, compare with sent version
+  - Per-decode-step hook: capture logits before sampling, hidden states at each layer
+- Compare intermediate representations between aggregated and PD modes at each stage
+- This enables root cause analysis that actually works (vs. M74's heuristics which guess based on divergence position)
+- `xpyd-acc trace --baseline <url> --target <url> --prompt <text> --hooks prefill,kv,decode`
+- Output: per-stage comparison report showing exactly where numerical drift begins
+- Initial target: vLLM (most common PD disaggregation framework)
+- Stretch: SGLang, TensorRT-LLM
+
+## M85: PD Topology-Aware Testing
+- Current tools treat the endpoint as a black box — send request, get response
+- In real PD deployments behind xPyD-proxy, there are multiple prefill and decode nodes
+- Topology-aware mode:
+  - Auto-discover topology via xPyD-proxy `/status` or `/v1/instances` API
+  - Enumerate all prefill/decode node pairs
+  - Route test requests to specific node pairs (via proxy hints or direct node access)
+  - Per-node-pair accuracy report: which specific P+D combination shows drift?
+- `xpyd-acc topology-scan --proxy <url>` discovers and tests all node pairs
+- `xpyd-acc compare --prefill-node <url> --decode-node <url>` tests a specific pair
+- Detects: one bad GPU in a pool, one node with wrong precision config, asymmetric NCCL issues
+- Critical for production clusters where "5% divergence rate" might be "one node is broken, the rest are fine"
+
+## M86: Hardware Precision Baseline Library
+- Collect and maintain reference data for expected numerical differences across:
+  - GPU architectures: A100 vs H100 vs H200 vs Gaudi2 vs Gaudi3
+  - Precision modes: FP16 vs BF16 vs FP8 vs INT8-KV
+  - Attention implementations: FlashAttention v2 vs v3, PagedAttention, xFormers
+  - TP parallelism degrees: TP=1 vs TP=2 vs TP=4 vs TP=8
+- When a user runs `check-kv` or `compare-logprobs`, report not just "there's a difference" but "this difference is within/outside the expected range for your hardware config"
+- `xpyd-acc baseline-db update` fetches latest reference data from a central repository
+- `xpyd-acc diagnose --hw-profile a100-bf16-tp4` uses the matching baseline for comparison
+- Transforms raw numbers into actionable verdicts: "expected hardware variance" vs "likely software bug"
+- Community-contributed baselines: users can submit anonymized precision profiles to build the database
