@@ -1,65 +1,72 @@
 <!-- CRITICAL: DO NOT SUMMARIZE OR COMPRESS THIS FILE -->
 <!-- This file contains precise rules that must be read in full. -->
 
-# Review Policy
+# Review Policy — xPyD-acc
 
 ## Roles
-
 | Role | GitHub Account | Action |
 |------|---------------|--------|
-| Implementer | `hlin99` | Write code, submit PRs, fix issues |
-| Reviewer 1 | `hlin99-Review-Bot` | Review PRs: approve / request changes / close |
-| Reviewer 2 | `hlin99-Review-BotX` | Review PRs: approve / request changes / close |
+| Implementer | `hlin99` | Write code, submit PRs |
+| Reviewer 1 | `hlin99-Review-Bot` | Review PRs |
+| Reviewer 2 | `hlin99-Review-BotX` | Review PRs |
 
-## Timing
+Each reviewer uses its own dedicated token. Never use author's token for reviews.
 
+## Timing Parameters
 | Parameter | Value |
 |-----------|-------|
 | Iteration interval | 10 minutes |
 | PR wait for review | max 15 minutes |
 | Fix after request changes | max 10 minutes |
-| Reviewer check frequency | every 5 minutes |
+| Reviewer check frequency (has PRs) | every 5 minutes |
+| Reviewer check frequency (no PRs) | every 15 minutes |
 | Reviewer response deadline | 15 minutes after assign |
 | Reviewer timeout action | close PR (iteration failed) |
-| Total round timeout | 1 hour from PR creation |
-| Round timeout action | close PR (iteration failed) |
 
-## Review Criteria
+## What to Review
+1. Skip draft PRs.
+2. Skip already-reviewed commits (only APPROVE counts as reviewed).
+3. Re-requested reviews take priority — always perform fresh review.
+4. One review per PR per commit SHA — never submit multiple reviews for same commit.
 
-Reviewers evaluate each PR on two dimensions:
+## Review Process: Two-Stage Gate
 
-### 1. Idea Value
-- Is the direction/approach valuable for the project?
-- Does it align with the project goals?
-- **If NO → close PR immediately** (one close = PR rejected)
+### Stage 1: Design Review (Gate)
 
-### 2. Code Quality
-- Is the code correct?
-- Are tests included/passing?
-- Is `bot/iterations/current.md` updated with clear description?
-- Does `docs/guide.md` reflect changes (if applicable)?
-- **If idea is good but code has issues → request changes**
+Before looking at any code, evaluate the design:
 
-## Decision Rules
+- **Is this change valuable?** Does it solve a real problem? Is it worth the complexity?
+- **Is the approach sound?** Is this the right way to solve it?
+- **Does it match the linked Issue spec?** If the PR deviates from the agreed design, reject.
 
-| Scenario | Action |
-|----------|--------|
-| Both reviewers approve | Auto-merge |
-| One approves, one requests changes | Implementer fixes, reviewers re-review |
-| Either reviewer closes | PR closed, iteration failed |
-| Both approve after fixes | Auto-merge |
-| Timeout (15min no review) | PR closed, iteration failed |
-| Total timeout (1 hour) | PR closed, iteration failed |
+**If the design has no value or the approach is wrong → CLOSE the PR immediately.** Do not proceed to code review. Do not waste time reviewing code for a feature that shouldn't exist.
 
-## Iteration Record
+### Stage 2: Code Review (only after Stage 1 passes)
 
-Every PR MUST update `bot/iterations/current.md` with:
-- What was done this iteration
-- Result: merged / closed (with reason)
-- Reviewer scores/comments summary
+Only if the design is valuable and the approach is sound, review the code using the checklist below. Apply proxy-level strict standards — every line examined.
 
-## Auto-Merge Requirements
+## Review Checklist
+For each non-draft PR with a new commit:
 
-- 2 approvals from designated reviewers
-- CI passes (all checks green)
-- No unresolved review comments
+| Area | Check |
+|---|---|
+| CI | Must be fully green before APPROVE. May submit REQUEST_CHANGES or COMMENT while pending. |
+| Merge conflicts | If mergeable == false, REQUEST_CHANGES. |
+| Logic errors | Incorrect conditions, off-by-one, unhandled edge cases. |
+| Type safety | Mismatched types, missing None checks. |
+| Concurrency | Race conditions, missing locks, shared mutable state. |
+| Exception handling | Bare except, swallowed exceptions, resource leaks. |
+| Security | Injection risks, hardcoded secrets, unsanitized input. |
+| Code style | Unused imports, shadowed variables, unclear naming. |
+| Test coverage | New logic must have corresponding tests. |
+| Design conformance | Implementation must match the linked GitHub Issue design. |
+
+## Verdicts
+- **APPROVE** — code correct, CI green, no issues.
+- **REQUEST_CHANGES** — any issue found. Use inline comments.
+- **COMMENT** — CI pending or noting something without blocking.
+
+## Merge Policy (Loop Mode)
+- Both reviewers approve + CI green → bot auto-merges.
+- Reviewer timeout (15 min) → bot closes PR (iteration failed).
+- Single approve is not enough to merge. Both must approve.
