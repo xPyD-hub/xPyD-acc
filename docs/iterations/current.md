@@ -50,3 +50,4 @@ shell for exploratory comparison of two endpoints.
 | M82 | 2026-04-06 | Interactive REPL for Exploratory Comparison | ✅ merged | Both approved |
 | M83 | 2026-04-06 | Divergence Heatmap by Token Position | ✅ merged | Both approved |
 | M84 | 2026-04-06 | Endpoint Response Time Regression Detection | ✅ merged | Both approved |
+| M85 | 2026-04-06 | Offline Mode — File-Based Comparison | ⏳ pending review | — |

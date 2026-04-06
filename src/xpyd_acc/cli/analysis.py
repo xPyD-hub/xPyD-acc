@@ -297,3 +297,54 @@ def handle_heatmap(args: argparse.Namespace) -> None:
     if args.json:
         heatmap.to_json(args.json)
         print(f"\nHeatmap exported to {args.json}")
+
+
+def _run_file_compare(args: argparse.Namespace) -> None:
+    """Run offline file-based comparison."""
+    import json as _json
+    from pathlib import Path
+
+    from xpyd_acc.file_compare import (
+        format_file_compare,
+        load_outputs,
+        run_file_compare,
+    )
+    from xpyd_acc.output_compare import MatchConfig
+
+    baseline_outputs = load_outputs(Path(args.baseline))
+    target_outputs = load_outputs(Path(args.target))
+
+    match_config = MatchConfig(
+        normalize_whitespace=getattr(args, "normalize_whitespace", False),
+        ignore_case=getattr(args, "ignore_case", False),
+        numeric_tolerance=getattr(args, "numeric_tolerance", None),
+    )
+
+    report = run_file_compare(
+        baseline_outputs,
+        target_outputs,
+        match_config=match_config,
+    )
+
+    print(format_file_compare(report))
+
+    if getattr(args, "json", None):
+        with open(args.json, "w") as f:
+            _json.dump(report.to_json(), f, indent=2)
+        print(f"\nJSON exported to {args.json}")
+
+    if getattr(args, "csv", None):
+        report.to_csv(args.csv)
+        print(f"CSV exported to {args.csv}")
+
+    if getattr(args, "markdown", None):
+        md = report.to_markdown()
+        Path(args.markdown).write_text(md)
+        print(f"Markdown exported to {args.markdown}")
+
+    if getattr(args, "junit", None):
+        report.to_junit(args.junit)
+        print(f"JUnit XML exported to {args.junit}")
+
+    if report.divergent_samples > 0:
+        raise SystemExit(1)

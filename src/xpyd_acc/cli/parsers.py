@@ -52,6 +52,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_repl(sub)
     _register_latency_regression(sub)
     _register_heatmap(sub)
+    _register_file_compare(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -636,3 +637,28 @@ def _register_heatmap(sub):
         help="Number of position buckets (default: 10)",
     )
     hm.add_argument("--json", default=None, help="Export heatmap as JSON to this path")
+
+
+def _register_file_compare(sub):
+    fc = sub.add_parser(
+        "compare-files",
+        help="Compare pre-collected outputs from JSONL files (offline mode)",
+    )
+    fc.add_argument("--baseline", required=True, help="Path to baseline outputs JSONL")
+    fc.add_argument("--target", required=True, help="Path to target outputs JSONL")
+    fc.add_argument("--json", default=None, help="Export report as JSON")
+    fc.add_argument("--csv", default=None, help="Export report as CSV")
+    fc.add_argument("--markdown", default=None, help="Export report as Markdown")
+    fc.add_argument("--junit", default=None, help="Export report as JUnit XML")
+    fc.add_argument(
+        "--normalize-whitespace", action="store_true", default=False,
+        help="Normalize whitespace before comparison",
+    )
+    fc.add_argument(
+        "--ignore-case", action="store_true", default=False,
+        help="Case-insensitive comparison",
+    )
+    fc.add_argument(
+        "--numeric-tolerance", type=float, default=None,
+        help="Numeric tolerance for matching",
+    )

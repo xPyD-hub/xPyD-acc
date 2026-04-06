@@ -13,6 +13,7 @@ from ._common import _resolve_fail_threshold as _resolve_fail_threshold
 # via "xpyd_acc.cli._run_compare_logprobs" etc.
 from .analysis import (
     _run_entropy,
+    _run_file_compare,
     _run_fingerprint,
     _run_latency_regression,
     _run_length_bias,
@@ -137,6 +138,7 @@ def main(argv: list[str] | None = None) -> None:
         "auto-threshold": lambda: _run_auto_threshold(args),
         "repl": lambda: _run_repl(args),
         "latency-regression": lambda: _run_latency_regression(args),
+        "compare-files": lambda: _run_file_compare(args),
     }
 
     if args.command in _early:
