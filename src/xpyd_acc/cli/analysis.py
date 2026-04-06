@@ -348,3 +348,71 @@ def _run_file_compare(args: argparse.Namespace) -> None:
 
     if report.divergent_samples > 0:
         raise SystemExit(1)
+
+
+def handle_capture_kv(args: argparse.Namespace) -> None:
+    """Handle the capture-kv CLI subcommand."""
+    import json as _json
+
+    from xpyd_acc.capture_kv import (
+        CaptureConfig,
+        CapturePoint,
+        capture_kv_mock,
+        filter_layers,
+        save_capture,
+    )
+
+    # Parse layers
+    layers = None
+    if args.layers:
+        layers = [int(x.strip()) for x in args.layers.split(",")]
+
+    # Parse capture points
+    points = [
+        CapturePoint(p.strip()) for p in args.capture_points.split(",")
+    ]
+
+    config = CaptureConfig(
+        url=args.url,
+        prompt=args.prompt,
+        output_path=args.output,
+        layers=layers,
+        capture_points=points,
+        tp_size=args.tp_size,
+        max_tokens=args.max_tokens,
+    )
+
+    errors = config.validate()
+    if errors:
+        for e in errors:
+            print(f"Error: {e}", file=sys.stderr)
+        raise SystemExit(1)
+
+    if args.mock:
+        result = capture_kv_mock(config)
+    else:
+        print(
+            "Live vLLM capture requires a vLLM instance with monkey-patch hooks.\n"
+            "Use --mock for testing, or see docs for vLLM integration guide.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    if not result.success:
+        print("Capture failed:", file=sys.stderr)
+        for e in result.errors:
+            print(f"  - {e}", file=sys.stderr)
+        raise SystemExit(1)
+
+    # Apply layer filter
+    result.layers = filter_layers(result.layers, layers)
+
+    saved = save_capture(result, args.output)
+    print(f"KV cache saved to {saved}")
+    print(f"  Layers captured: {len(result.layers)}")
+    print(f"  Capture points: {[p.value for p in config.capture_points]}")
+
+    if getattr(args, "json", None):
+        with open(args.json, "w") as f:
+            _json.dump(result.to_dict(), f, indent=2)
+        print(f"  Metadata exported to {args.json}")

@@ -52,6 +52,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_repl(sub)
     _register_latency_regression(sub)
     _register_heatmap(sub)
+    _register_capture_kv(sub)
     _register_file_compare(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
@@ -637,6 +638,38 @@ def _register_heatmap(sub):
         help="Number of position buckets (default: 10)",
     )
     hm.add_argument("--json", default=None, help="Export heatmap as JSON to this path")
+
+
+def _register_capture_kv(sub):
+    ck = sub.add_parser(
+        "capture-kv",
+        help="Capture KV cache from a vLLM endpoint",
+    )
+    ck.add_argument("--url", required=True, help="vLLM endpoint URL")
+    ck.add_argument("--prompt", required=True, help="Prompt text to send")
+    ck.add_argument("--output", required=True, help="Output path for .npz file")
+    ck.add_argument(
+        "--layers", default=None,
+        help="Comma-separated layer indices to capture (default: all)",
+    )
+    ck.add_argument(
+        "--capture-points",
+        default="after_prefill",
+        help="Comma-separated capture points: after_prefill,after_transfer,during_decode",
+    )
+    ck.add_argument(
+        "--tp-size", type=int, default=1,
+        help="Tensor parallel size for shard reconstruction (default: 1)",
+    )
+    ck.add_argument(
+        "--max-tokens", type=int, default=1,
+        help="Max tokens to generate (default: 1)",
+    )
+    ck.add_argument(
+        "--mock", action="store_true", default=False,
+        help="Use mock capture for testing (no real vLLM connection)",
+    )
+    ck.add_argument("--json", default=None, help="Export capture metadata as JSON")
 
 
 def _register_file_compare(sub):
