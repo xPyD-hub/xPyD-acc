@@ -471,3 +471,47 @@ def handle_trace(args: argparse.Namespace) -> None:
 
     if result.overall_diverged:
         raise SystemExit(1)
+
+
+def handle_topology_scan(args: argparse.Namespace) -> None:
+    """Handle topology-scan subcommand."""
+    from xpyd_acc.topology import (
+        NodePairResult,
+        TopologyNode,
+        format_topology,
+        scan_topology,
+    )
+
+    if args.mock:
+        # Mock topology for testing
+        prefill_nodes = [
+            TopologyNode("p1", "http://prefill-1:8000", "prefill"),
+            TopologyNode("p2", "http://prefill-2:8000", "prefill"),
+        ]
+        decode_nodes = [
+            TopologyNode("d1", "http://decode-1:8000", "decode"),
+            TopologyNode("d2", "http://decode-2:8000", "decode"),
+        ]
+
+        def mock_test(p_node: TopologyNode, d_node: TopologyNode) -> NodePairResult:
+            return NodePairResult(
+                prefill_node=p_node.node_id,
+                decode_node=d_node.node_id,
+                samples_tested=args.samples,
+                divergent_count=0,
+            )
+
+        report = scan_topology(prefill_nodes, decode_nodes, mock_test, proxy_url=args.proxy)
+    else:
+        print(
+            "Live topology scanning requires a running xPyD-proxy.\n"
+            "Use --mock for testing.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    print(format_topology(report))
+
+    if getattr(args, "json", None):
+        report.to_json(args.json)
+        print(f"Topology report exported to {args.json}")

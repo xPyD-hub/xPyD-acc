@@ -23,6 +23,7 @@ from .analysis import (
     handle_heatmap,
     handle_root_cause,
     handle_token_diff,
+    handle_topology_scan,
     handle_trace,
 )
 from .batch import _run_batch_compare
@@ -143,6 +144,7 @@ def main(argv: list[str] | None = None) -> None:
         "repl": lambda: _run_repl(args),
         "latency-regression": lambda: _run_latency_regression(args),
         "compare-files": lambda: _run_file_compare(args),
+        "topology-scan": lambda: handle_topology_scan(args),
     }
 
     if args.command in _early:

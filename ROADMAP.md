@@ -841,7 +841,7 @@ get from a Python script calling `/v1/chat/completions`.
 - Target vLLM ≥ 0.6.x with `--enable-disaggregated-prefill`
 - This is the single highest-value feature for making xPyD-acc a real diagnostic tool vs. a glorified diff script
 
-## M88: Framework-Level Inference Hooks
+## M88: Framework-Level Inference Hooks ✅
 - Go beyond API-level logprobs comparison — hook into the inference engine to capture intermediate states
 - Provide a hook interface that can be injected into vLLM / SGLang inference loops:
   - Post-prefill hook: capture hidden states, attention weights, KV cache state
