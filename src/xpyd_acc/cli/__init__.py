@@ -19,6 +19,7 @@ from .analysis import (
     _run_length_bias,
     _run_sensitivity,
     _run_watch,
+    handle_baseline_db,
     handle_capture_kv,
     handle_heatmap,
     handle_root_cause,
@@ -145,6 +146,7 @@ def main(argv: list[str] | None = None) -> None:
         "latency-regression": lambda: _run_latency_regression(args),
         "compare-files": lambda: _run_file_compare(args),
         "topology-scan": lambda: handle_topology_scan(args),
+        "baseline-db": lambda: handle_baseline_db(args),
     }
 
     if args.command in _early:

@@ -515,3 +515,84 @@ def handle_topology_scan(args: argparse.Namespace) -> None:
     if getattr(args, "json", None):
         report.to_json(args.json)
         print(f"Topology report exported to {args.json}")
+
+
+def handle_baseline_db(args: argparse.Namespace) -> None:
+    """Handle baseline-db subcommand."""
+    import json as _json
+
+    from xpyd_acc.hw_baseline import (
+        BaselineDB,
+        classify_difference,
+        format_classification,
+        format_profile,
+        format_profile_list,
+    )
+
+    db = BaselineDB()
+    action = getattr(args, "baseline_action", None)
+
+    if action == "list":
+        print(format_profile_list(db))
+
+    elif action == "show":
+        profile = db.get_profile(args.profile)
+        if profile is None:
+            print(f"Profile '{args.profile}' not found.", file=sys.stderr)
+            raise SystemExit(1)
+        print(format_profile(profile))
+
+    elif action == "export":
+        db.export_json(args.output)
+        print(f"Exported {len(db.list_profiles())} profiles to {args.output}")
+
+    elif action == "import":
+        count = db.import_json(getattr(args, "input"))
+        print(f"Imported {count} profiles.")
+
+    elif action == "find":
+        results = db.find_profiles(
+            gpu_arch=args.gpu,
+            precision_mode=args.precision,
+            tp_degree=args.tp,
+        )
+        if not results:
+            print("No matching profiles found.")
+        else:
+            for p in results:
+                print(format_profile(p))
+                print()
+
+    elif action == "classify":
+        profile = db.get_profile(args.profile)
+        if profile is None:
+            print(f"Profile '{args.profile}' not found.", file=sys.stderr)
+            raise SystemExit(1)
+        observations: dict[str, float] = {}
+        if args.max_abs_diff is not None:
+            observations["max_abs_diff"] = args.max_abs_diff
+        if args.mean_abs_diff is not None:
+            observations["mean_abs_diff"] = args.mean_abs_diff
+        if args.cosine_sim is not None:
+            observations["cosine_sim"] = args.cosine_sim
+        if not observations:
+            print(
+                "No observations provided. "
+                "Use --max-abs-diff, --mean-abs-diff, or --cosine-sim.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        report = classify_difference(profile, observations)
+        print(format_classification(report))
+        if getattr(args, "json", None):
+            from pathlib import Path
+            Path(args.json).write_text(_json.dumps(report.to_dict(), indent=2) + "\n")
+            print(f"Classification exported to {args.json}")
+
+    else:
+        print(
+            "Usage: xpyd-acc baseline-db "
+            "{list|show|export|import|find|classify}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
