@@ -48,6 +48,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_serve(sub)
     _register_prometheus(sub)
     _register_grafana_dashboard(sub)
+    _register_auto_threshold(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -573,4 +574,23 @@ def _register_grafana_dashboard(sub):
     gd.add_argument(
         "--title", default="xPyD-acc Divergence Dashboard",
         help="Dashboard title",
+    )
+
+
+def _register_auto_threshold(sub):
+    at = sub.add_parser(
+        "auto-threshold",
+        help="Recommend fail-threshold and numeric-tolerance from historical reports",
+    )
+    at.add_argument(
+        "--reports", nargs="+", required=True,
+        help="Paths to batch report JSON files",
+    )
+    at.add_argument(
+        "--percentile", type=float, default=0.95,
+        help="Percentile for threshold recommendation (default: 0.95)",
+    )
+    at.add_argument(
+        "--json", default=None,
+        help="Export recommendations as JSON to this path",
     )
