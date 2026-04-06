@@ -19,6 +19,7 @@ from .analysis import (
     _run_length_bias,
     _run_sensitivity,
     _run_smart_retry,
+    _run_generate_suite,
     _run_watch,
     handle_baseline_db,
     handle_capture_kv,
@@ -149,6 +150,7 @@ def main(argv: list[str] | None = None) -> None:
         "topology-scan": lambda: handle_topology_scan(args),
         "baseline-db": lambda: handle_baseline_db(args),
         "smart-retry": lambda: _run_smart_retry(args),
+        "generate-suite": lambda: _run_generate_suite(args),
     }
 
     if args.command in _early:
