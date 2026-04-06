@@ -47,4 +47,6 @@ shell for exploratory comparison of two endpoints.
 | M79 | 2026-04-06 | Parallel Multi-Dataset Batch Run | ✅ merged | Both approved |
 | M80 | 2026-04-06 | Multi-Dataset CLI Integration | ✅ merged | Both approved |
 | M81 | 2026-04-06 | Automatic Threshold Tuning | ✅ merged | Both approved |
-| M82 | 2026-04-06 | Interactive REPL for Exploratory Comparison | ⏳ pending review | — |
+| M82 | 2026-04-06 | Interactive REPL for Exploratory Comparison | ✅ merged | Both approved |
+| M83 | 2026-04-06 | Divergence Heatmap by Token Position | ⏳ pending merge (2 approvals, rebased) | Both approved |
+| M84 | 2026-04-06 | Endpoint Response Time Regression Detection | ⏳ pending review | — |

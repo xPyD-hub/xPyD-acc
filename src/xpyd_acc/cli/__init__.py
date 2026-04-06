@@ -14,6 +14,7 @@ from ._common import _resolve_fail_threshold as _resolve_fail_threshold
 from .analysis import (
     _run_entropy,
     _run_fingerprint,
+    _run_latency_regression,
     _run_length_bias,
     _run_sensitivity,
     _run_watch,
@@ -133,6 +134,7 @@ def main(argv: list[str] | None = None) -> None:
         "completion": lambda: _run_completion(args, parser),
         "auto-threshold": lambda: _run_auto_threshold(args),
         "repl": lambda: _run_repl(args),
+        "latency-regression": lambda: _run_latency_regression(args),
     }
 
     if args.command in _early:
