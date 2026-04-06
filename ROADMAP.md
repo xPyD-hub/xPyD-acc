@@ -763,7 +763,7 @@
 - Progress bars per dataset
 - Tests for CLI integration with multiple datasets
 
-## M81: Automatic Threshold Tuning
+## M81: Automatic Threshold Tuning ✅
 - `xpyd-acc auto-threshold --reports r1.json r2.json ...` analyzes historical batch reports
 - Suggests optimal `--fail-threshold` based on observed divergence rate distribution
 - Suggests optimal `--numeric-tolerance` based on logprob gap distribution at divergence points
@@ -774,3 +774,15 @@
 - Rich terminal output with distribution summary and recommended values
 - `auto_threshold.py` module: `analyze_thresholds()`, `ThresholdRecommendation`, `format_recommendations()`
 - 12 tests covering threshold computation, edge cases, formatting, JSON export, CLI integration
+
+## M82: Interactive REPL for Exploratory Comparison
+- `xpyd-acc repl --baseline <url> --target <url> --model <model>` launches interactive shell
+- Type a prompt → sends to both endpoints → shows side-by-side output comparison
+- Built-in REPL commands: `:logprobs` (toggle logprob display), `:diff` (show token diff of last result)
+- `:history` shows previous prompts and results in session
+- `:set temperature=0.5` to adjust sampling params on the fly
+- `:export <path>` saves session history as JSON
+- `--api-key` flag, env var, and TOML config supported
+- Readline-style line editing and history (via stdlib `readline`)
+- `repl.py` module: `run_repl()`, `ReplSession`, `ReplCommand`
+- 12 tests covering session state, command parsing, export, edge cases, CLI integration

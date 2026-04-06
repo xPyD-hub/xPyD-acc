@@ -49,6 +49,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_prometheus(sub)
     _register_grafana_dashboard(sub)
     _register_auto_threshold(sub)
+    _register_repl(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -594,3 +595,14 @@ def _register_auto_threshold(sub):
         "--json", default=None,
         help="Export recommendations as JSON to this path",
     )
+
+
+def _register_repl(sub):
+    rp = sub.add_parser(
+        "repl",
+        help="Interactive REPL for exploratory comparison",
+    )
+    rp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    rp.add_argument("--target", required=True, help="Target endpoint URL")
+    rp.add_argument("--model", default="default", help="Model name")
+    rp.add_argument("--api-key", default=None, help="API key")

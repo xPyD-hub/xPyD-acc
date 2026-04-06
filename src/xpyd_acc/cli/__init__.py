@@ -43,6 +43,7 @@ from .report import (
     _run_grafana_dashboard,
     _run_prometheus,
     _run_regression,
+    _run_repl,
     _run_report,
     _run_summary,
 )
@@ -131,6 +132,7 @@ def main(argv: list[str] | None = None) -> None:
         "profiles": lambda: _run_profiles(config),
         "completion": lambda: _run_completion(args, parser),
         "auto-threshold": lambda: _run_auto_threshold(args),
+        "repl": lambda: _run_repl(args),
     }
 
     if args.command in _early:

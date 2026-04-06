@@ -401,3 +401,17 @@ def _run_auto_threshold(args: argparse.Namespace) -> None:
             json.dumps(rec.to_dict(), indent=2), encoding="utf-8"
         )
         print(f"\nRecommendations exported to {args.json}")
+
+
+def _run_repl(args: argparse.Namespace) -> None:
+    """Launch interactive REPL for exploratory comparison."""
+    import asyncio
+
+    from xpyd_acc.repl import run_repl
+
+    asyncio.run(run_repl(
+        baseline_url=args.baseline,
+        target_url=args.target,
+        model=args.model,
+        api_key=getattr(args, "api_key", None),
+    ))
