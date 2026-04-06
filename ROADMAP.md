@@ -787,7 +787,7 @@
 - `repl.py` module: `run_repl()`, `ReplSession`, `ReplCommand`
 - 12 tests covering session state, command parsing, export, edge cases, CLI integration
 
-## M83: Divergence Heatmap by Token Position
+## M83: Divergence Heatmap by Token Position ✅
 - `xpyd-acc heatmap --report <path>` analyzes divergence frequency by token position across all samples
 - Bin token positions into configurable buckets (e.g., 0-10, 10-50, 50-100, 100+)
 - Per-bucket: divergence count, divergence rate, avg logprob gap
@@ -799,7 +799,7 @@
 - `heatmap.py` module: `compute_heatmap()`, `HeatmapReport`, `format_heatmap()`
 - 12 tests covering bucket computation, edge cases, formatting, JSON export, CLI integration
 
-## M84: Endpoint Response Time Regression Detection
+## M84: Endpoint Response Time Regression Detection ✅
 - `xpyd-acc latency-regression --old <benchmark.json> --new <benchmark.json>` compares latency benchmarks
 - Welch's t-test for statistical significance of latency changes
 - Reports: mean diff, p-value, effect size (Cohen's d), verdict (faster/slower/unchanged)
