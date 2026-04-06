@@ -41,7 +41,8 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
         from xpyd_acc.dry_run import format_dry_run, run_dry_run
 
         result = await run_dry_run(
-            args.dataset, args.baseline, target_urls[0],
+            args.dataset[0] if isinstance(args.dataset, list) else args.dataset,
+            args.baseline, target_urls[0],
             template=args.template, skip_healthcheck=args.skip_healthcheck,
             model=args.model, max_tokens=args.max_tokens, api_key=args.api_key,
             concurrency=args.concurrency, retries=args.retries, retry_delay=args.retry_delay,
@@ -52,6 +53,12 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             Path(args.json_path).write_text(result.to_json())
             print(f"\nDry run report exported to {args.json_path}")
         sys.exit(0 if result.valid else 1)
+
+    # Multi-dataset mode: delegate when more than one --dataset provided
+    dataset_paths: list[str] = args.dataset if isinstance(args.dataset, list) else [args.dataset]
+    if len(dataset_paths) > 1:
+        await _run_multi_dataset(args, dataset_paths, target_urls)
+        return
 
     from xpyd_acc.batch_compare import (
         export_csv,
@@ -64,7 +71,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
     from xpyd_acc.sampling import SamplingParams
 
     sampling = SamplingParams.from_args(args)
-    samples = load_dataset(args.dataset)
+    samples = load_dataset(dataset_paths[0])
 
     if args.template:
         from xpyd_acc.templates import resolve_template
@@ -74,7 +81,7 @@ async def _run_batch_compare(args: argparse.Namespace) -> None:
             variables = {"prompt": sample.prompt, **sample.metadata}
             sample.prompt = template.render(variables)
 
-    print(f"Loaded {len(samples)} samples from {args.dataset}")
+    print(f"Loaded {len(samples)} samples from {dataset_paths[0]}")
 
     if not args.skip_healthcheck:
         await _preflight_healthcheck([args.baseline, *target_urls], api_key=args.api_key)
@@ -435,3 +442,103 @@ async def _run_rerun(args: argparse.Namespace) -> None:
     elif report.divergent_samples > 0:
         sys.exit(1)
 
+
+
+async def _run_multi_dataset(
+    args: argparse.Namespace,
+    dataset_paths: list[str],
+    target_urls: list[str],
+) -> None:
+    """Run batch comparison across multiple datasets concurrently."""
+    from pathlib import Path
+
+    from xpyd_acc.batch_compare import load_dataset
+    from xpyd_acc.multi_dataset import (
+        format_multi_dataset_report,
+        run_multi_dataset,
+    )
+    from xpyd_acc.sampling import SamplingParams
+
+    sampling = SamplingParams.from_args(args)
+
+    # Load all datasets
+    dataset_map: dict[str, list] = {}
+    for dp in dataset_paths:
+        name = Path(dp).stem
+        samples = load_dataset(dp)
+        if args.template:
+            from xpyd_acc.templates import resolve_template
+            template = resolve_template(args.template)
+            for sample in samples:
+                variables = {"prompt": sample.prompt, **sample.metadata}
+                sample.prompt = template.render(variables)
+        dataset_map[name] = samples
+        print(f"Loaded {len(samples)} samples from {dp}")
+
+    target_url = target_urls[0]
+    if not args.skip_healthcheck:
+        await _preflight_healthcheck([args.baseline, target_url], api_key=args.api_key)
+
+    from xpyd_acc.output_compare import MatchConfig
+    match_config = MatchConfig(
+        normalize_whitespace=args.normalize_whitespace,
+        ignore_case=args.ignore_case,
+        numeric_tolerance=args.numeric_tolerance,
+    )
+    effective_match = match_config if (
+        match_config.normalize_whitespace or match_config.ignore_case
+        or match_config.numeric_tolerance is not None
+    ) else None
+
+    from xpyd_acc.headers import parse_env_headers, parse_header_args, resolve_headers
+    cli_hdrs = parse_header_args(getattr(args, "headers", None))
+    env_hdrs = parse_env_headers()
+    cfg_hdrs = args._config.get("defaults", {}).get("headers") if args._config else None
+    custom_headers = resolve_headers(
+        cli_headers=cli_hdrs, env_headers=env_hdrs, config_headers=cfg_hdrs,
+    ) or None
+
+    report = await run_multi_dataset(
+        dataset_map,
+        args.baseline,
+        target_url,
+        model=args.model,
+        max_tokens=args.max_tokens,
+        api_key=args.api_key,
+        logprob_gap_threshold=args.logprob_gap_threshold,
+        concurrency=args.concurrency,
+        retries=args.retries,
+        retry_delay=args.retry_delay,
+        match_config=effective_match,
+        sampling_params=sampling,
+        timeout=args.timeout,
+        skip_validation=getattr(args, "skip_validation", False),
+        custom_headers=custom_headers,
+    )
+
+    print()
+    print(format_multi_dataset_report(report))
+
+    if args.json_path:
+        Path(args.json_path).write_text(report.to_json())
+        print(f"\nJSON exported to {args.json_path}")
+
+    if args.markdown:
+        Path(args.markdown).write_text(report.to_markdown())
+        print(f"\nMarkdown exported to {args.markdown}")
+
+    fail_threshold = _resolve_fail_threshold(args, getattr(args, "_config", None))
+    if fail_threshold is not None:
+        for name in report.datasets:
+            dr = report.per_dataset[name].divergence_rate
+            if dr > fail_threshold:
+                print(
+                    f"\n✗ FAIL: dataset '{name}' divergence rate {dr:.1%}"
+                    f" exceeds threshold {fail_threshold:.1%}",
+                )
+                sys.exit(1)
+        print(
+            f"\n✓ PASS: all datasets within threshold {fail_threshold:.1%}",
+        )
+    elif report.total_divergent > 0:
+        sys.exit(1)
