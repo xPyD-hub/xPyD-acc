@@ -58,6 +58,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_topology_scan(sub)
     _register_baseline_db(sub)
     _register_smart_retry(sub)
+    _register_generate_suite(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -815,3 +816,15 @@ def _register_smart_retry(sub):
     p.add_argument("--timeout", type=float, default=120.0, help="HTTP timeout seconds")
     p.add_argument("--json", default=None, dest="json_path", help="Export results as JSON")
     p.add_argument("--skip-validation", action="store_true", help="Skip response validation")
+
+def _register_generate_suite(sub):
+    p = sub.add_parser("generate-suite", help="Generate test dataset from divergent samples")
+    p.add_argument("--report", required=True, help="Path to batch report JSON")
+    p.add_argument("--output", required=True, help="Output JSONL path")
+    p.add_argument("--classification", default=None, help="Filter by classification")
+    p.add_argument("--min-logprob-gap", type=float, default=None, help="Minimum logprob gap filter")
+    p.add_argument("--max-samples", type=int, default=None, help="Maximum samples in suite")
+    p.add_argument(
+        "--include-expected", action="store_true",
+        help="Include baseline output as expected",
+    )
