@@ -53,4 +53,5 @@ shell for exploratory comparison of two endpoints.
 | M85 | 2026-04-06 | Offline Mode — File-Based Comparison | ✅ merged | Both approved |
 | M87 | 2026-04-06 | Automatic KV Cache Export from vLLM | ✅ merged | Both approved |
 | M88 | 2026-04-06 | Framework-Level Inference Hooks | ✅ merged | Both approved |
-| M89 | 2026-04-06 | PD Topology-Aware Testing | ⏳ pending review | — |
+| M89 | 2026-04-06 | PD Topology-Aware Testing | ✅ merged | Both approved |
+| M90 | 2026-04-06 | Hardware Precision Baseline Library | ⏳ pending review | — |

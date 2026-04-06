@@ -867,7 +867,7 @@ get from a Python script calling `/v1/chat/completions`.
 - Detects: one bad GPU in a pool, one node with wrong precision config, asymmetric NCCL issues
 - Critical for production clusters where "5% divergence rate" might be "one node is broken, the rest are fine"
 
-## M90: Hardware Precision Baseline Library
+## M90: Hardware Precision Baseline Library ✅
 - Collect and maintain reference data for expected numerical differences across:
   - GPU architectures: A100 vs H100 vs H200 vs Gaudi2 vs Gaudi3
   - Precision modes: FP16 vs BF16 vs FP8 vs INT8-KV

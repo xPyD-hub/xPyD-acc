@@ -56,6 +56,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_file_compare(sub)
     _register_trace(sub)
     _register_topology_scan(sub)
+    _register_baseline_db(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -759,3 +760,42 @@ def _register_topology_scan(sub):
         "--mock", action="store_true", default=False,
         help="Use mock topology for testing (no real endpoints)",
     )
+
+
+def _register_baseline_db(sub):
+    bd = sub.add_parser(
+        "baseline-db",
+        help="Manage hardware precision baseline profiles",
+    )
+    bd_sub = bd.add_subparsers(dest="baseline_action")
+    bd_sub.add_parser("list", help="List available hardware profiles")
+
+    show_p = bd_sub.add_parser("show", help="Show details of a specific profile")
+    show_p.add_argument("profile", help="Profile name")
+
+    export_p = bd_sub.add_parser("export", help="Export all profiles to JSON")
+    export_p.add_argument("--output", required=True, help="Output JSON file path")
+
+    import_p = bd_sub.add_parser("import", help="Import profiles from JSON")
+    import_p.add_argument("--input", required=True, help="Input JSON file path")
+
+    find_p = bd_sub.add_parser("find", help="Find profiles by criteria")
+    find_p.add_argument("--gpu", default=None, help="Filter by GPU architecture")
+    find_p.add_argument("--precision", default=None, help="Filter by precision mode")
+    find_p.add_argument("--tp", type=int, default=None, help="Filter by TP degree")
+
+    classify_p = bd_sub.add_parser("classify", help="Classify observed differences")
+    classify_p.add_argument("--profile", required=True, help="Profile name to compare against")
+    classify_p.add_argument(
+        "--max-abs-diff", type=float, default=None, dest="max_abs_diff",
+        help="Observed max absolute diff",
+    )
+    classify_p.add_argument(
+        "--mean-abs-diff", type=float, default=None, dest="mean_abs_diff",
+        help="Observed mean absolute diff",
+    )
+    classify_p.add_argument(
+        "--cosine-sim", type=float, default=None, dest="cosine_sim",
+        help="Observed cosine similarity",
+    )
+    classify_p.add_argument("--json", default=None, help="Export classification as JSON")
