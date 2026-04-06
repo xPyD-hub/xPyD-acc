@@ -35,6 +35,7 @@ from .report import (
     _run_ab_test,
     _run_aggregate,
     _run_annotate,
+    _run_auto_threshold,
     _run_cluster,
     _run_diff,
     _run_explain,
@@ -129,6 +130,7 @@ def main(argv: list[str] | None = None) -> None:
         "config": lambda: _run_config(args),
         "profiles": lambda: _run_profiles(config),
         "completion": lambda: _run_completion(args, parser),
+        "auto-threshold": lambda: _run_auto_threshold(args),
     }
 
     if args.command in _early:

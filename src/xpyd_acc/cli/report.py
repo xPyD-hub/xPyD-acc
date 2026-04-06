@@ -378,3 +378,26 @@ def _run_grafana_dashboard(args: argparse.Namespace) -> None:
 
     Path(args.output).write_text(dashboard.to_json(), encoding="utf-8")
     print(f"Grafana dashboard written to {args.output}")
+
+
+def _run_auto_threshold(args: argparse.Namespace) -> None:
+    """Analyze historical reports and recommend thresholds."""
+    import json
+    from pathlib import Path
+
+    from xpyd_acc.auto_threshold import (
+        analyze_thresholds,
+        format_recommendations,
+        load_reports,
+    )
+
+    reports = load_reports(args.reports)
+    rec = analyze_thresholds(reports, percentile_level=args.percentile)
+
+    print(format_recommendations(rec))
+
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(rec.to_dict(), indent=2), encoding="utf-8"
+        )
+        print(f"\nRecommendations exported to {args.json}")
