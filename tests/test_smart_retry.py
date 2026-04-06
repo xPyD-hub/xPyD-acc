@@ -110,7 +110,7 @@ def test_smart_retry_result_to_json():
 def test_run_smart_retry_no_divergent():
     """No divergent samples → empty result."""
     report = _make_report([_make_result("s1", match=True)])
-    result = asyncio.get_event_loop().run_until_complete(
+    result = asyncio.run(
         run_smart_retry(report, "http://base", "http://target")
     )
     assert result.original_divergent == 0
@@ -133,7 +133,7 @@ def test_run_smart_retry_all_deterministic(mock_run_batch):
     ])
     mock_run_batch.return_value = retry_report
 
-    result = asyncio.get_event_loop().run_until_complete(
+    result = asyncio.run(
         run_smart_retry(original, "http://base", "http://target")
     )
     assert result.original_divergent == 2
@@ -154,7 +154,7 @@ def test_run_smart_retry_all_stochastic(mock_run_batch):
     ])
     mock_run_batch.return_value = retry_report
 
-    result = asyncio.get_event_loop().run_until_complete(
+    result = asyncio.run(
         run_smart_retry(original, "http://base", "http://target")
     )
     assert result.original_divergent == 1
@@ -178,7 +178,7 @@ def test_run_smart_retry_mixed(mock_run_batch):
     ])
     mock_run_batch.return_value = retry_report
 
-    result = asyncio.get_event_loop().run_until_complete(
+    result = asyncio.run(
         run_smart_retry(original, "http://base", "http://target")
     )
     assert result.original_divergent == 2
@@ -200,7 +200,7 @@ def test_run_smart_retry_greedy_params(mock_run_batch):
     ])
     mock_run_batch.return_value = retry_report
 
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         run_smart_retry(original, "http://base", "http://target")
     )
 
@@ -222,7 +222,7 @@ def test_run_smart_retry_progress_callback(mock_run_batch):
     mock_run_batch.return_value = retry_report
 
     progress_calls = []
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         run_smart_retry(
             original, "http://base", "http://target",
             on_progress=lambda c, t: progress_calls.append((c, t)),
