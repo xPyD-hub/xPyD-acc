@@ -828,7 +828,7 @@ below shift focus to **framework-level deep diagnostics** — capabilities that 
 beyond API-level black-box comparison and provide the kind of insight you can't
 get from a Python script calling `/v1/chat/completions`.
 
-## M87: Automatic KV Cache Export from vLLM
+## M87: Automatic KV Cache Export from vLLM ✅
 - The biggest gap in the current toolchain: `check-kv` requires pre-existing `.npz` dumps, but extracting KV cache from a running vLLM instance is the hardest part of the workflow
 - Provide a vLLM plugin / monkey-patch that intercepts the KV cache at configurable points:
   - After prefill completes (before KV transfer)
@@ -854,7 +854,7 @@ get from a Python script calling `/v1/chat/completions`.
 - Initial target: vLLM (most common PD disaggregation framework)
 - Stretch: SGLang, TensorRT-LLM
 
-## M89: PD Topology-Aware Testing
+## M89: PD Topology-Aware Testing ✅
 - Current tools treat the endpoint as a black box — send request, get response
 - In real PD deployments behind xPyD-proxy, there are multiple prefill and decode nodes
 - Topology-aware mode:
@@ -878,3 +878,16 @@ get from a Python script calling `/v1/chat/completions`.
 - `xpyd-acc diagnose --hw-profile a100-bf16-tp4` uses the matching baseline for comparison
 - Transforms raw numbers into actionable verdicts: "expected hardware variance" vs "likely software bug"
 - Community-contributed baselines: users can submit anonymized precision profiles to build the database
+
+## M91: Smart Retry for Divergent Samples
+- After initial batch comparison, automatically retry divergent samples with deterministic settings (temperature=0, seed=42)
+- Classifies divergence as: `deterministic` (reproduces under greedy decoding) or `stochastic` (disappears with greedy)
+- `batch-compare --smart-retry` flag triggers automatic rerun of divergent samples
+- `xpyd-acc smart-retry --report <path> --baseline <url> --target <url>` standalone command
+- `SmartRetryResult` dataclass: original_divergent, deterministic_count, stochastic_count, results per sample
+- Stochastic divergences downgraded in severity (likely sampling noise, not a bug)
+- JSON export with per-sample retry details
+- Rich terminal output with deterministic vs stochastic breakdown
+- Integrates with existing `--fail-threshold`: only deterministic divergences count toward threshold
+- `smart_retry.py` module: `run_smart_retry()`, `SmartRetryResult`, `format_smart_retry()`
+- Tests covering retry logic, classification, integration, JSON export, CLI

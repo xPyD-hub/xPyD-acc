@@ -57,6 +57,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_trace(sub)
     _register_topology_scan(sub)
     _register_baseline_db(sub)
+    _register_smart_retry(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -799,3 +800,18 @@ def _register_baseline_db(sub):
         help="Observed cosine similarity",
     )
     classify_p.add_argument("--json", default=None, help="Export classification as JSON")
+
+
+def _register_smart_retry(sub):
+    p = sub.add_parser("smart-retry", help="Retry divergent samples with greedy settings")
+    p.add_argument("--report", required=True, help="Path to batch report JSON")
+    p.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    p.add_argument("--target", required=True, help="Target endpoint URL")
+    p.add_argument("--model", default="default", help="Model identifier")
+    p.add_argument("--max-tokens", type=int, default=64, help="Max tokens per request")
+    p.add_argument("--api-key", default="no-key", help="API key")
+    p.add_argument("--retries", type=int, default=3, help="HTTP retry count")
+    p.add_argument("--retry-delay", type=float, default=1.0, help="Base retry delay")
+    p.add_argument("--timeout", type=float, default=120.0, help="HTTP timeout seconds")
+    p.add_argument("--json", default=None, dest="json_path", help="Export results as JSON")
+    p.add_argument("--skip-validation", action="store_true", help="Skip response validation")
