@@ -596,3 +596,36 @@ def handle_baseline_db(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
         raise SystemExit(1)
+
+
+def _run_smart_retry(args: argparse.Namespace) -> None:
+    """Handle the smart-retry subcommand."""
+    from pathlib import Path
+
+    from xpyd_acc.batch_compare import load_report
+    from xpyd_acc.smart_retry import format_smart_retry, run_smart_retry
+
+    report = load_report(args.report)
+    result = asyncio.run(
+        run_smart_retry(
+            report,
+            args.baseline,
+            args.target,
+            model=args.model,
+            max_tokens=args.max_tokens,
+            api_key=args.api_key,
+            retries=args.retries,
+            retry_delay=args.retry_delay,
+            timeout=args.timeout,
+            skip_validation=args.skip_validation,
+        )
+    )
+
+    print(format_smart_retry(result))
+
+    if args.json_path:
+        Path(args.json_path).write_text(result.to_json() + "\n")
+        print(f"\nResults exported to {args.json_path}")
+
+    if result.deterministic_count > 0:
+        raise SystemExit(1)
