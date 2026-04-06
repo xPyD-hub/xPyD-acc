@@ -416,3 +416,58 @@ def handle_capture_kv(args: argparse.Namespace) -> None:
         with open(args.json, "w") as f:
             _json.dump(result.to_dict(), f, indent=2)
         print(f"  Metadata exported to {args.json}")
+
+
+def handle_trace(args: argparse.Namespace) -> None:
+    """Handle the trace CLI subcommand."""
+    import json as _json
+
+    from xpyd_acc.inference_hooks import (
+        HookPoint,
+        MockInferenceHook,
+        format_trace,
+        run_trace,
+    )
+
+    hooks = [HookPoint(h.strip()) for h in args.hooks.split(",")]
+
+    if args.mock:
+        baseline_hook = MockInferenceHook(
+            num_layers=args.num_layers,
+            noise_scale=0.0,
+            seed=42,
+        )
+        target_hook = MockInferenceHook(
+            num_layers=args.num_layers,
+            noise_scale=args.noise_scale,
+            seed=42,
+        )
+    else:
+        print(
+            "Live inference tracing requires framework-specific hooks.\n"
+            "Use --mock for testing, or see docs for vLLM/SGLang integration.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    result = run_trace(
+        baseline_hook=baseline_hook,
+        target_hook=target_hook,
+        prompt=args.prompt,
+        baseline_url=args.baseline,
+        target_url=args.target,
+        hooks=hooks,
+        num_layers=args.num_layers,
+        decode_steps=args.decode_steps,
+        threshold=args.threshold,
+    )
+
+    print(format_trace(result))
+
+    if getattr(args, "json", None):
+        with open(args.json, "w") as f:
+            _json.dump(result.to_dict(), f, indent=2)
+        print(f"Trace exported to {args.json}")
+
+    if result.overall_diverged:
+        raise SystemExit(1)

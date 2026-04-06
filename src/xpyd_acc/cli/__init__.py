@@ -23,6 +23,7 @@ from .analysis import (
     handle_heatmap,
     handle_root_cause,
     handle_token_diff,
+    handle_trace,
 )
 from .batch import _run_batch_compare
 from .benchmark import (
@@ -129,6 +130,7 @@ def main(argv: list[str] | None = None) -> None:
         "token-diff": lambda: handle_token_diff(args),
         "heatmap": lambda: handle_heatmap(args),
         "capture-kv": lambda: handle_capture_kv(args),
+        "trace": lambda: handle_trace(args),
         "filter": lambda: _run_filter(args),
         "serve": lambda: _run_serve(args),
         "grafana-dashboard": lambda: _run_grafana_dashboard(args),

@@ -51,4 +51,5 @@ shell for exploratory comparison of two endpoints.
 | M83 | 2026-04-06 | Divergence Heatmap by Token Position | ✅ merged | Both approved |
 | M84 | 2026-04-06 | Endpoint Response Time Regression Detection | ✅ merged | Both approved |
 | M85 | 2026-04-06 | Offline Mode — File-Based Comparison | ✅ merged | Both approved |
-| M87 | 2026-04-06 | Automatic KV Cache Export from vLLM | ⏳ pending review | — |
+| M87 | 2026-04-06 | Automatic KV Cache Export from vLLM | ✅ merged | Both approved |
+| M88 | 2026-04-06 | Framework-Level Inference Hooks | ⏳ pending review | — |

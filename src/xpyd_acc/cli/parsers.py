@@ -54,6 +54,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_heatmap(sub)
     _register_capture_kv(sub)
     _register_file_compare(sub)
+    _register_trace(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -695,3 +696,39 @@ def _register_file_compare(sub):
         "--numeric-tolerance", type=float, default=None,
         help="Numeric tolerance for matching",
     )
+
+
+def _register_trace(sub):
+    tr = sub.add_parser(
+        "trace",
+        help="Trace intermediate inference states between baseline and target",
+    )
+    tr.add_argument("--baseline", required=True, help="Baseline endpoint URL")
+    tr.add_argument("--target", required=True, help="Target endpoint URL")
+    tr.add_argument("--prompt", required=True, help="Prompt text")
+    tr.add_argument(
+        "--hooks",
+        default="prefill,kv_transfer,decode_step",
+        help="Comma-separated hooks: prefill,kv_transfer,decode_step",
+    )
+    tr.add_argument(
+        "--num-layers", type=int, default=4,
+        help="Number of layers to trace (default: 4)",
+    )
+    tr.add_argument(
+        "--decode-steps", type=int, default=1,
+        help="Number of decode steps to trace (default: 1)",
+    )
+    tr.add_argument(
+        "--threshold", type=float, default=1e-5,
+        help="Divergence threshold (default: 1e-5)",
+    )
+    tr.add_argument(
+        "--mock", action="store_true", default=False,
+        help="Use mock hooks for testing",
+    )
+    tr.add_argument(
+        "--noise-scale", type=float, default=0.0,
+        help="Noise scale for mock target hook (default: 0.0)",
+    )
+    tr.add_argument("--json", default=None, help="Export trace result as JSON")
