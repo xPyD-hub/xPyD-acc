@@ -1,3 +1,6 @@
+<!-- CRITICAL: DO NOT SUMMARIZE OR COMPRESS THIS FILE -->
+<!-- This file contains precise rules that must be read in full. -->
+
 # xPyD-acc Design Principles
 
 ## Core Positioning
@@ -18,7 +21,6 @@ Help users answer: "My PD disaggregated output is wrong. Is it Prefill, KV trans
 - Clear human-readable report
 
 ## Rules
-- Committer must be hlin99 <tony.lin@intel.com>
 - All code, docs, issues, PRs in English
 - Commit messages: conventional commits format
-- Code in src/xpyd_acc/, tests in tests/
+- Code in `src/xpyd_acc/`, tests in `tests/`

@@ -1,3 +1,6 @@
+<!-- CRITICAL: DO NOT SUMMARIZE OR COMPRESS THIS FILE -->
+<!-- This file contains precise rules that must be read in full. -->
+
 # Review Policy
 
 ## Roles
@@ -33,7 +36,7 @@ Reviewers evaluate each PR on two dimensions:
 ### 2. Code Quality
 - Is the code correct?
 - Are tests included/passing?
-- Is `docs/iterations/current.md` updated with clear description?
+- Is `bot/iterations/current.md` updated with clear description?
 - Does `docs/guide.md` reflect changes (if applicable)?
 - **If idea is good but code has issues → request changes**
 
@@ -50,7 +53,7 @@ Reviewers evaluate each PR on two dimensions:
 
 ## Iteration Record
 
-Every PR MUST update `docs/iterations/current.md` with:
+Every PR MUST update `bot/iterations/current.md` with:
 - What was done this iteration
 - Result: merged / closed (with reason)
 - Reviewer scores/comments summary

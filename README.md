@@ -1,25 +1,16 @@
 # xPyD-acc
 
-Accuracy diagnostic tool for PD (Prefill/Decode) disaggregated LLM inference.
+PD disaggregation accuracy diagnostic tool.
 
-When PD disaggregation introduces accuracy issues, xPyD-acc helps you pinpoint
-exactly where the problem is: Prefill, KV transfer, or Decode.
+When PD disaggregated inference produces wrong output, xPyD-acc pinpoints where the problem is: Prefill, KV transfer, or Decode.
 
-## The Problem
+## Key Features
 
-In PD disaggregated deployment, the inference pipeline is split across nodes.
-Any of these stages can introduce accuracy drift:
-- **Prefill** — TP parallelism, numerical precision (FP16/BF16), attention implementation
-- **KV Transfer** — serialization/deserialization, quantization, memory alignment
-- **Decode** — context length handling, position encoding, KV cache interpretation
-
-## Approach
-
-Step-by-step isolation:
-1. Establish baseline (aggregated mode output)
-2. Isolate and test each stage independently
-3. Compare outputs at each boundary
-4. Report exactly where divergence starts
+- **Logprobs comparison** — token-by-token divergence detection between endpoints
+- **KV cache analysis** — numerical accuracy checks (max abs diff, cosine similarity)
+- **Automated diagnostics** — full pipeline: baseline → isolate → compare → report
+- **Interactive REPL** — exploratory comparison with live parameter tuning
+- **Batch & offline modes** — multi-dataset runs and file-based comparison
 
 ## Install
 
@@ -42,19 +33,23 @@ xpyd-acc compare-logprobs \
   --endpoint-a http://aggregated:8000 \
   --endpoint-b http://prefill:8001 \
   --prompt "Hello world"
-
-# Check KV cache numerical accuracy
-xpyd-acc check-kv \
-  --kv-dump-a baseline_kv.npz \
-  --kv-dump-b transfer_kv.npz
 ```
 
-## Documentation
+## Part of xPyD
 
-- **[User Guide](docs/guide.md)** — installation, subcommand reference, step-by-step diagnostic flow, and results interpretation
-- **[Current Iteration](docs/iterations/current.md)** — M72 milestone status, features, known limitations, and roadmap
-- **[Diagnostic Script](scripts/run_diagnose.sh)** — one-shot `bash scripts/run_diagnose.sh <aggregated_url> <pd_url>`
+| Component | Description |
+|-----------|-------------|
+| [xPyD-proxy](https://github.com/xPyD-hub/xPyD-proxy) | PD-aware reverse proxy |
+| [xPyD-sim](https://github.com/xPyD-hub/xPyD-sim) | PD disaggregation simulator |
+| [xPyD-bench](https://github.com/xPyD-hub/xPyD-bench) | Benchmarking tool |
+| **xPyD-acc** | Accuracy diagnostics (this repo) |
+| [xPyD-plan](https://github.com/xPyD-hub/xPyD-plan) | Project planning |
+
+## Resources
+
+- [User Guide](docs/guide.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## License
 
-TBD
+[Apache 2.0](LICENSE)
