@@ -55,6 +55,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_capture_kv(sub)
     _register_file_compare(sub)
     _register_trace(sub)
+    _register_topology_scan(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -76,6 +77,14 @@ def _register_compare(sub):
     lp.add_argument(
         "--kl-threshold", type=float, default=None, dest="kl_threshold",
         help="KL divergence threshold for flagging positions (default: 0.1)",
+    )
+    lp.add_argument(
+        "--prefill-node", default=None,
+        help="Direct prefill node URL (topology-aware comparison)",
+    )
+    lp.add_argument(
+        "--decode-node", default=None,
+        help="Direct decode node URL (topology-aware comparison)",
     )
 
     oc = sub.add_parser("compare-output", help="Compare text outputs from two endpoints")
@@ -732,3 +741,21 @@ def _register_trace(sub):
         help="Noise scale for mock target hook (default: 0.0)",
     )
     tr.add_argument("--json", default=None, help="Export trace result as JSON")
+
+
+def _register_topology_scan(sub):
+    ts = sub.add_parser(
+        "topology-scan",
+        help="Discover and test all prefill/decode node pairs via xPyD-proxy",
+    )
+    ts.add_argument("--proxy", required=True, help="xPyD-proxy URL")
+    ts.add_argument("--prompt", default="Hello", help="Test prompt (default: Hello)")
+    ts.add_argument(
+        "--samples", type=int, default=10,
+        help="Number of samples per node pair (default: 10)",
+    )
+    ts.add_argument("--json", default=None, help="Export topology report as JSON")
+    ts.add_argument(
+        "--mock", action="store_true", default=False,
+        help="Use mock topology for testing (no real endpoints)",
+    )
