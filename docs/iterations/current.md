@@ -102,3 +102,29 @@ Added `xpyd-acc root-cause --report <path>` CLI subcommand that analyzes batch r
 | M76 | 2026-04-06 | Report Dashboard Server | ✅ merged | Both approved |
 | M77 | 2026-04-06 | Prometheus Metrics Export | ✅ merged | Both approved |
 | M78 | 2026-04-06 | Grafana Dashboard Template Export | ✅ merged | Both approved |
+
+## Iteration M79: Parallel Multi-Dataset Batch Run
+
+### What
+Added `multi_dataset.py` module for running multiple evaluation datasets concurrently.
+
+### Implementation
+- `MultiDatasetReport` dataclass with per-dataset `BatchReport` and aggregate stats
+- `run_multi_dataset()` async function runs datasets in parallel via `asyncio.gather()`
+- `format_multi_dataset_report()` for terminal display with per-dataset pass/fail indicators
+- JSON and Markdown export with per-dataset breakdowns
+- Callback support via `on_dataset_complete` parameter
+
+### Files Changed
+- `src/xpyd_acc/multi_dataset.py` (new)
+- `tests/test_multi_dataset.py` (new, 18 tests)
+
+### Tests
+18 tests covering:
+- Dataclass construction, aggregation, edge cases (empty, all match, all diverge)
+- JSON serialization and round-trip
+- Markdown export with truncation
+- Async execution with mocked run_batch
+- Callback invocation
+- Kwargs forwarding
+- Empty dataset map handling
