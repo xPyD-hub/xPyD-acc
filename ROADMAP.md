@@ -762,3 +762,15 @@
 - Template support: `--template` applies to all datasets
 - Progress bars per dataset
 - Tests for CLI integration with multiple datasets
+
+## M81: Automatic Threshold Tuning
+- `xpyd-acc auto-threshold --reports r1.json r2.json ...` analyzes historical batch reports
+- Suggests optimal `--fail-threshold` based on observed divergence rate distribution
+- Suggests optimal `--numeric-tolerance` based on logprob gap distribution at divergence points
+- Uses percentile-based approach: recommend threshold at p95 of observed rates (configurable)
+- `--percentile <float>` flag (default 0.95) to control aggressiveness
+- `ThresholdRecommendation` dataclass: fail_threshold, numeric_tolerance, confidence, sample_size, reasoning
+- `--json <path>` export of recommendations
+- Rich terminal output with distribution summary and recommended values
+- `auto_threshold.py` module: `analyze_thresholds()`, `ThresholdRecommendation`, `format_recommendations()`
+- 12 tests covering threshold computation, edge cases, formatting, JSON export, CLI integration
