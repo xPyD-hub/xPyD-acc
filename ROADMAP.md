@@ -810,7 +810,7 @@
 - `latency_regression.py` module: `LatencyRegressionResult`, `run_latency_regression()`, `format_latency_regression()`
 - 12 tests covering t-test, effect size, formatting, JSON export, CLI integration
 
-## M85: Offline Mode — File-Based Comparison Without Endpoints
+## M85: Offline Mode — File-Based Comparison Without Endpoints ✅
 - `xpyd-acc compare-files --baseline <outputs.jsonl> --target <outputs.jsonl>` compares pre-collected outputs
 - JSONL format: `{"id": "...", "output": "...", "logprobs": [...]}` per line
 - Full batch comparison pipeline (matching, classification, statistics) without any API calls
