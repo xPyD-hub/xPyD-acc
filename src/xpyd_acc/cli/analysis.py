@@ -258,3 +258,29 @@ def handle_token_diff(args: argparse.Namespace) -> None:
         data = [d.to_dict() for d in diffs]
         Path(args.td_json).write_text(_json.dumps(data, indent=2))
         print(f"Exported to {args.td_json}")
+
+
+def _run_latency_regression(args: argparse.Namespace) -> None:
+    """Run latency regression detection between two benchmark runs."""
+    import json
+    from pathlib import Path
+
+    from xpyd_acc.latency_regression import (
+        format_latency_regression,
+        run_latency_regression,
+    )
+
+    result = run_latency_regression(
+        old_path=Path(args.old),
+        new_path=Path(args.new),
+        alpha=args.alpha,
+    )
+
+    format_latency_regression(result)
+
+    if args.json:
+        with open(args.json, "w") as f:
+            json.dump(result.to_dict(), f, indent=2)
+
+    if result.verdict == "slower":
+        raise SystemExit(1)

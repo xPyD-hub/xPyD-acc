@@ -50,6 +50,7 @@ def register_all(sub: argparse._SubParsersAction) -> None:
     _register_grafana_dashboard(sub)
     _register_auto_threshold(sub)
     _register_repl(sub)
+    _register_latency_regression(sub)
 def _register_compare(sub):
     lp = sub.add_parser("compare-logprobs", help="Compare logprobs between two endpoints")
     lp.add_argument("--baseline", required=True, help="Baseline endpoint URL")
@@ -606,3 +607,20 @@ def _register_repl(sub):
     rp.add_argument("--target", required=True, help="Target endpoint URL")
     rp.add_argument("--model", default="default", help="Model name")
     rp.add_argument("--api-key", default=None, help="API key")
+
+
+def _register_latency_regression(sub):
+    lr = sub.add_parser(
+        "latency-regression",
+        help="Detect response time regressions between two benchmark runs",
+    )
+    lr.add_argument("--old", required=True, help="Path to old (baseline) benchmark JSON")
+    lr.add_argument("--new", required=True, help="Path to new (current) benchmark JSON")
+    lr.add_argument(
+        "--alpha", type=float, default=0.05,
+        help="Significance level for t-test (default: 0.05)",
+    )
+    lr.add_argument(
+        "--json", default=None,
+        help="Export regression results as JSON to this path",
+    )
