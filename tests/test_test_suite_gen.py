@@ -6,7 +6,6 @@ import json
 import tempfile
 from pathlib import Path
 
-
 from xpyd_acc.batch_compare import BatchReport, SampleResult
 from xpyd_acc.test_suite_gen import (
     GenerateSuiteConfig,
