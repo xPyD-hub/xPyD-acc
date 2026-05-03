@@ -629,3 +629,28 @@ def _run_smart_retry(args: argparse.Namespace) -> None:
 
     if result.deterministic_count > 0:
         raise SystemExit(1)
+
+
+def _run_generate_suite(args: argparse.Namespace) -> None:
+    """Handle the generate-suite subcommand."""
+    from pathlib import Path
+
+    from xpyd_acc.batch_compare import load_report
+    from xpyd_acc.test_suite_gen import (
+        GenerateSuiteConfig,
+        format_suite_summary,
+        generate_suite,
+        write_suite,
+    )
+
+    report = load_report(args.report)
+    config = GenerateSuiteConfig(
+        classification=args.classification,
+        min_logprob_gap=args.min_logprob_gap,
+        max_samples=args.max_samples,
+        include_expected=args.include_expected,
+    )
+    entries = generate_suite(report, config)
+    write_suite(entries, Path(args.output))
+    print(format_suite_summary(entries, report))
+    print(f"\nSuite written to {args.output}")

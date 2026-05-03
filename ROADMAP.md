@@ -879,7 +879,7 @@ get from a Python script calling `/v1/chat/completions`.
 - Transforms raw numbers into actionable verdicts: "expected hardware variance" vs "likely software bug"
 - Community-contributed baselines: users can submit anonymized precision profiles to build the database
 
-## M91: Smart Retry for Divergent Samples
+## M91: Smart Retry for Divergent Samples ✅
 - After initial batch comparison, automatically retry divergent samples with deterministic settings (temperature=0, seed=42)
 - Classifies divergence as: `deterministic` (reproduces under greedy decoding) or `stochastic` (disappears with greedy)
 - `batch-compare --smart-retry` flag triggers automatic rerun of divergent samples
@@ -891,3 +891,20 @@ get from a Python script calling `/v1/chat/completions`.
 - Integrates with existing `--fail-threshold`: only deterministic divergences count toward threshold
 - `smart_retry.py` module: `run_smart_retry()`, `SmartRetryResult`, `format_smart_retry()`
 - Tests covering retry logic, classification, integration, JSON export, CLI
+
+## M92: Test Suite Generation from Divergent Samples
+- `xpyd-acc generate-suite --report <path> --output <path>` extracts divergent samples into a reusable test dataset
+- Output format: JSONL (compatible with `batch-compare --dataset`)
+- Each entry includes: original prompt, expected baseline output, divergence metadata
+- `--classification <value>` filter: only include `likely_bug`, `likely_uncertainty`, etc.
+- `--deterministic-only` flag: only include samples classified as deterministic (from smart-retry)
+- `--min-logprob-gap <float>` filter: only include high-confidence divergences
+- `--max-samples <int>` cap the number of samples in the generated suite
+- `--include-expected` flag: embed baseline output as `expected` field for exact-match regression testing
+- `SuiteEntry` dataclass: id, prompt, expected (optional), metadata (classification, divergence_index, logprob_gap)
+- `GenerateSuiteConfig` dataclass for filter settings
+- `generate_suite()` function: load report → filter → emit JSONL
+- Round-trip: generated suite works directly with `batch-compare --dataset`
+- Enables CI workflow: batch-compare → generate-suite → commit suite → rerun on every deploy
+- `test_suite_gen.py` module with `generate_suite()`, `SuiteEntry`, `GenerateSuiteConfig`
+- 15 tests covering generation, filtering, round-trip compatibility, edge cases, CLI integration
